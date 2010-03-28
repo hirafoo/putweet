@@ -1,0 +1,343 @@
+#!/usr/bin/perl
+package Putweet;
+use base qw/Class::Accessor::Fast/;
+use strict;
+use warnings;
+use Config::Pit;
+use Data::Dumper;
+use Encode qw/encode_utf8 decode_utf8/;
+use HTML::Entities qw/decode_entities/;
+use Net::Twitter;
+use Term::ReadKey qw/GetTerminalSize/;
+use Term::ReadLine;
+use Time::Piece;
+
+__PACKAGE__->mk_accessors(qw/
+    dispatch nt term user user_list
+    _blocking_users _followers _friends _user_info
+/);
+
+sub clear { system('clear') + 1 }
+sub say { print @_, "\n" }
+sub p {
+    local $Data::Dumper::Indent = 1;
+    local $Data::Dumper::Terse  = 1;
+    warn Dumper shift;
+}
+
+sub new { bless {}, shift }
+
+sub init {
+    my ($self, @args) = @_;
+
+    $self->dispatch({qw/
+        a show_status 
+        b block_user
+        c change_user 
+        d direct_messages
+        f friends_timeline
+        h help
+        i friends
+        l show_blocking_users
+        m mentions
+        o followers
+        q quit
+        s user_timeline
+        t retweets_of_me
+        u update
+        w show_user
+    /});
+
+    my $c = pit_get('putweet');
+    $self->nt(Net::Twitter->new($c));
+
+    $self->term(Term::ReadLine->new(''));
+
+    my $user_list = pit_get('putweet_user_list');
+    $self->user_list($user_list);
+
+    $self->change_user;
+}
+
+sub main_loop {
+    my ($self, @args) = @_;
+
+    clear and say "now login as -> " . $self->user and say;
+    if (@args and my $func = $self->dispatch->{shift @args}) {
+        $self->$func(@args);
+    }
+    else {
+        p $self->dispatch and say;
+    }
+    my @in = split ' ', $self->term->readline('putweet ');
+    $self->main_loop(@in);
+}
+
+sub done {
+    my ($self, $message) = @_;
+    say $message if $message;
+    my $done = $self->term->readline("done.");
+    $self->main_loop;
+}
+
+sub block_user {
+    my ($self, $screen_name) = @_;
+    return $self->done("input user screen_name.") unless $screen_name;
+    $self->nt->create_block($screen_name);
+    say and $self->done;
+}
+
+sub show_blocking_users {
+    my $self = shift;
+
+    say $self->_blocking_users and return $self->done if $self->_blocking_users;
+    my $bloking_users;
+    my $users = $self->nt->blocking;
+    for my $user (@$users) {
+        my ($id, $name) = ((sprintf "%-9s", $user->{id}), $user->{screen_name});
+        $bloking_users .= "$id $name\n";
+    }
+    $self->_blocking_users($bloking_users);
+    say $self->_blocking_users and return $self->done;
+}
+
+sub change_user {
+    my ($self, $error) = @_;
+    clear and $error and say $error;
+
+    my $i = 1;
+    for my $u (keys %{$self->user_list}) {
+        say $i++ . ": $u";
+    }
+    say;
+    $i = $self->term->readline("which user?: ");
+    $i =~ /^\d+$/ and $i-- or return $self->change_user("input error.");
+    my @user_list = %{$self->user_list};
+    my $user = $user_list[$i * 2];
+
+    my $c_user = $self->user_list->{$user} or return $self->change_user("input error.");
+    $self->nt->access_token($c_user->{access_token});
+    $self->nt->access_token_secret($c_user->{access_token_secret});
+    $self->user($user);
+    $self->$_(undef) for qw/_blocking_users _followers _friends _user_info/;
+    $self->done;
+}
+
+sub show_status {
+    my ($self, $id) = @_;
+
+    my $status = $self->nt->show_status({id => $id});
+    $self->print_status([$status]);
+    $self->ask_reaction([$status]);
+}
+
+sub direct_messages {
+    my ($self, $count) = @_;
+    $count ||= 5;
+
+    my $statuses = $self->nt->direct_messages({count => $count});
+    $self->print_status($statuses) and $self->done;
+}
+
+sub friends_timeline {
+    my ($self, $count) = @_;
+    $count ||= 5;
+
+    my $statuses = $self->nt->friends_timeline({count => $count});
+    $self->print_status($statuses);
+    $self->ask_reaction($statuses);
+}
+
+sub mentions {
+    my ($self, $count) = @_;
+    $count ||= 5;
+
+    my $statuses = $self->nt->mentions({count => $count});
+    $self->print_status($statuses);
+    $self->ask_reaction($statuses);
+}
+
+sub update {
+    my ($self, @args) = @_;
+    $args[0] or return;
+
+    my $post_param;
+    if ($args[0] =~ m/^\d+$/) {
+        $post_param->{in_reply_to_status_id} = shift @args;
+    }
+
+    my $status = join " ", @args;
+    my $_status = decode_utf8 $status;
+    if (140 < length $_status) {
+        $status = substr($_status, 0, 140);
+        $status = encode_utf8 $status;
+    }
+    $post_param->{status} = decode_utf8 $status;
+    say "status: $status";
+
+    $self->nt->update($post_param) if $self->term->readline("ok? (y/n): ") eq 'y';
+    $self->done;
+}
+
+sub user_timeline {
+    my ($self, $screen_name, $count) = @_;
+    $count ||= 5;
+
+    my $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count});
+    $self->print_status($statuses);
+    $self->ask_reaction($statuses);
+}
+
+sub print_status {
+    my ($self, $statuses) = @_;
+
+    my $i = 0;
+    my ($width) = GetTerminalSize;
+    my $line = "=" x $width;
+    for my $status (@$statuses) {
+        $status->{source} =~ m{<.*?>(.+)</a>};
+        my $source = $1 || $status->{source};
+        $source = encode_utf8 $source;
+
+        my $reply_to = $status->{in_reply_to_screen_name};
+        $reply_to = $reply_to ? "in reply to $reply_to" : '';
+
+        my $t = $self->_parse_time($status->{created_at});
+        my $num = sprintf '%2d', $i;
+
+        say $line;
+        say join " ",
+        "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
+        ($status->{user}{screen_name} or $status->{sender}{screen_name}),
+        "via $source $reply_to";
+        say;
+        say decode_entities encode_utf8 $status->{text};
+
+        $i++;
+    }
+    say $line;
+}
+
+sub ask_reaction {
+    my ($self, $statuses) = @_;
+
+    say join "\n", 
+    "",
+    "---------------------------",
+    "  [number] : reply",
+    " r[number] : RT (unofficial)",
+    " w[number] : RT (unofficial and without in_reply_to_status_id)",
+    " f[number] : follow time line",
+    " b[number] : block user",
+    "  [other]  : end",
+    "---------------------------",
+    "";
+
+    my $in = $self->term->readline('input: ');
+    if ($in =~ m/^f\d+$/) {
+        $in =~ s/f//;
+        my $reply_id = $statuses->[$in]->{in_reply_to_status_id};
+        if ($reply_id) {
+            my $status = $self->nt->show_status({id => $reply_id});
+            $self->print_status([$status]);
+            return $self->ask_reaction([$status]);
+        }
+        else {
+            say "can not follow. there is no 'in_reply_to_status_id'";
+        }
+    }
+    elsif (my ($k) = $in =~ m/^([rw])\d+$/) {
+        $in =~ s/$k//;
+        my $status = $self->term->readline('str: ');
+        $status = $status . " RT @" . encode_utf8 "$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}";
+        $k eq 'w' ? $self->update($status) : $self->update($statuses->[$in]->{id}, $status);
+    }
+    elsif ($in =~ m/^\d+$/ and $statuses->[$in]) {
+        my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
+        $status = "\@$statuses->[$in]->{user}{screen_name} $status";
+        $self->update($statuses->[$in]->{id}, $status);
+    }
+    elsif ($in =~ m/^b\d+$/) {
+        $in =~ s/b//;
+        my $block_name = $statuses->[$in]->{user}{screen_name};
+        $self->block_user($block_name);
+    }
+    $self->done;
+}
+
+sub show_user {
+    my ($self, $id) = @_;
+    $id ||= $self->user;
+    say $self->_user_info and say and return $self->done if $self->_user_info and $id eq $self->user;
+
+    my %res = %{$self->nt->show_user({screen_name => $id})};
+    my %filterd;
+    my @want = qw/id name screen_name lang url description location time_zone statuses_count created_at friends_count followers_count/;
+    @filterd{@want} = @res{@want};
+    my $t = $self->_parse_time($filterd{created_at});
+    $filterd{created_at} = join " ", $t->ymd('/'), "(@{[$t->day]})", $t->hms;
+
+    my $user_info;
+    for my $key (@want) {
+        $filterd{$key} = encode_utf8 $filterd{$key} if $filterd{$key} and utf8::is_utf8($filterd{$key});
+        $filterd{$key} ||= '';
+
+        my $key2 = sprintf "%-15s", $key;
+        $user_info .= "$key2 $filterd{$key}\n";
+    }
+    $self->_user_info($user_info);
+    say $self->_user_info and $self->done;
+}
+
+sub followers {
+    my ($self, @args) = @_;
+
+    say $self->_followers and say and return $self->done if $self->_followers;
+    my $followers;
+    $followers .= " $_->{screen_name}" for @{$self->nt->followers};
+    $self->_followers($followers);
+    say $self->_followers and say and return $self->done;
+}
+
+sub friends {
+    my ($self, @args) = @_;
+
+    say $self->_friends and say and return $self->done if $self->_friends;
+    my $friends;
+    $friends .= " $_->{screen_name}" for @{$self->nt->friends};
+    $self->_friends($friends);
+    say $self->_friends and say and return $self->done;
+}
+
+sub retweets_of_me {
+    my ($self, $count) = @_;
+    $count ||= 5;
+    my $statuses = $self->nt->retweets_of_me({count => $count});
+    $self->print_status($statuses) and $self->done;
+}
+
+sub help {
+    my ($self, @args) = @_;
+    say "ソース嫁" and say and $self->done
+}
+
+sub _parse_time {
+    my ($self, $created_at) = @_;
+    Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400;
+}
+
+sub quit {
+    my ($self, @args) = @_;
+    say "bye." and exit
+}
+
+package main;
+use strict;
+use warnings;
+
+my $putweet = Putweet->new;
+$putweet->init;
+$putweet->main_loop while 1;
+
+#TODO
+#use Term::Shell ?
