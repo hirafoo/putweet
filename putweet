@@ -203,10 +203,10 @@ sub print_status {
     my $i = 0;
     my ($width) = GetTerminalSize;
     my $line = "=" x $width;
-    for my $status (reverse @$statuses) {
+    for my $status (@$statuses) {
         $status->{source} =~ m{<.*?>(.+)</a>};
         my $source = $1 || $status->{source};
-        $source = encode_utf8 $source;
+        $source = encode_utf8 $source if utf8::is_utf8($source);
 
         my $reply_to = $status->{in_reply_to_screen_name};
         $reply_to = $reply_to ? "in reply to $reply_to" : '';
