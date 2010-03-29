@@ -35,6 +35,7 @@ sub init {
         b block_user
         c change_user 
         d direct_messages
+        e create_friend
         f friends_timeline
         h help
         i friends
@@ -137,6 +138,14 @@ sub direct_messages {
 
     my $statuses = $self->nt->direct_messages({count => $count});
     $self->print_status($statuses) and $self->done;
+}
+
+sub create_friend {
+    my ($self, $screen_name) = @_;
+    $screen_name or return $self->done('args: screen_name');
+
+    $self->nt->create_friend($screen_name);
+    $self->done("now following $screen_name.");
 }
 
 sub friends_timeline {
@@ -266,13 +275,14 @@ sub ask_reaction {
 }
 
 sub show_user {
-    my ($self, $id) = @_;
-    $id ||= $self->user;
-    say $self->_user_info and say and return $self->done if $self->_user_info and $id eq $self->user;
+    my ($self, $screen_name) = @_;
+    $screen_name ||= $self->user;
+    say $self->_user_info and say and return $self->done if $self->_user_info and $screen_name eq $self->user;
 
-    my %res = %{$self->nt->show_user({screen_name => $id})};
+    my %res = %{$self->nt->show_user({screen_name => $screen_name})};
     my %filterd;
-    my @want = qw/id name screen_name lang url description location time_zone statuses_count created_at friends_count followers_count/;
+    my @want = qw/id name screen_name lang url description location
+                  time_zone statuses_count created_at friends_count followers_count/;
     @filterd{@want} = @res{@want};
     my $t = $self->_parse_time($filterd{created_at});
     $filterd{created_at} = join " ", $t->ymd('/'), "(@{[$t->day]})", $t->hms;
