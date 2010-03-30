@@ -306,7 +306,7 @@ sub followers {
 
     say $self->_followers and say and return $self->done if $self->_followers;
     my $followers;
-    $followers .= " $_->{screen_name}" for @{$self->nt->followers};
+    $followers .= "$_->{screen_name} " for @{$self->nt->followers};
     $self->_followers($followers);
     say $self->_followers and say and return $self->done;
 }
@@ -316,7 +316,7 @@ sub friends {
 
     say $self->_friends and say and return $self->done if $self->_friends;
     my $friends;
-    $friends .= " $_->{screen_name}" for @{$self->nt->friends};
+    $friends .= "$_->{screen_name} " for @{$self->nt->friends};
     $self->_friends($friends);
     say $self->_friends and say and return $self->done;
 }
