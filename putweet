@@ -275,11 +275,11 @@ sub ask_reaction {
 }
 
 sub show_user {
-    my ($self, $screen_name) = @_;
-    $screen_name ||= $self->user;
-    say $self->_user_info and say and return $self->done if $self->_user_info and $screen_name eq $self->user;
+    my ($self, $id) = @_;
+    $id ||= $self->user;
+    say $self->_user_info and say and return $self->done if $self->_user_info and $id eq $self->user;
 
-    my %res = %{$self->nt->show_user({screen_name => $screen_name})};
+    my %res = %{$self->nt->show_user($id)};
     my %filterd;
     my @want = qw/id name screen_name lang url description location
                   time_zone statuses_count created_at friends_count followers_count/;
