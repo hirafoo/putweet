@@ -277,7 +277,8 @@ sub ask_reaction {
 sub show_user {
     my ($self, $id) = @_;
     $id ||= $self->user;
-    say $self->_user_info and say and return $self->done if $self->_user_info and $id eq $self->user;
+    say $self->_user_info->{body} and say and return $self->done
+        if $self->_user_info and $self->_user_info->{id} eq $id;
 
     my %res = %{$self->nt->show_user($id)};
     my %filterd;
@@ -287,16 +288,17 @@ sub show_user {
     my $t = $self->_parse_time($filterd{created_at});
     $filterd{created_at} = join " ", $t->ymd('/'), "(@{[$t->day]})", $t->hms;
 
-    my $user_info;
+    my %user_info;
+    $user_info{id} = $id;
     for my $key (@want) {
         $filterd{$key} = encode_utf8 $filterd{$key} if $filterd{$key} and utf8::is_utf8($filterd{$key});
         $filterd{$key} ||= '';
 
         my $key2 = sprintf "%-15s", $key;
-        $user_info .= "$key2 $filterd{$key}\n";
+        $user_info{body} .= "$key2 $filterd{$key}\n";
     }
-    $self->_user_info($user_info);
-    say $self->_user_info and $self->done;
+    $self->_user_info(\%user_info);
+    say $self->_user_info->{body} and $self->done;
 }
 
 sub followers {
