@@ -24,7 +24,7 @@ sub say { print @_, "\n" }
 sub p {
     local $Data::Dumper::Indent = 1;
     local $Data::Dumper::Terse  = 1;
-    warn Dumper shift;
+    warn Dumper shift
 }
 sub pp {
     warn Dumper @_;
@@ -33,12 +33,12 @@ sub pp {
 }
 sub parse_time {
     my $created_at = shift;
-    Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400;
+    Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400
 }
 sub left {
     my ($length, $str) = @_;
     my $format = '%'. -$length . 's';
-    sprintf "$format", $str;
+    sprintf "$format", $str
 }
 
 
@@ -52,14 +52,14 @@ sub init {
     my ($width) = GetTerminalSize;
     my $data = do {local $/ = undef; <main::DATA>};
     $data = Load $data;
-    my $menu = left(5,'cmd') . left(18,'method') . left(21,'args') . 'explanation' . "\n";
+    my $menu = left(5, 'cmd') . left(18, 'method') . left(21, 'args') . 'explanation' . "\n";
     $menu .= "=" x $width;
     $menu .= "\n";
 
     for my $m (@{$data->{menu}}) {
         my ($cmd, $method, $args, $explanation) = @$m;
         $explanation ||= '';
-        my $str = left(5,$cmd) . left(18,$method) . left(21,$args) . $explanation . "\n";
+        my $str = left(5, $cmd) . left(18, $method) . left(21, $args) . $explanation . "\n";
         $menu .= $str;
         $self->dispatch->{$cmd} = $method;
     }
@@ -183,7 +183,7 @@ sub mentions {
 
 sub update {
     my ($self, @args) = @_;
-    $args[0] or return;
+    $args[0] or $self->done('args: status');
 
     my $post_param;
     if ($args[0] =~ m/^\d+$/) {
@@ -441,5 +441,5 @@ menu:
   -
     - w
     - show_user
-    - user_id/scren_name
+    - user_id/scren_name?
     - show the user's status
