@@ -3,7 +3,7 @@ package Putweet;
 use base qw/Class::Accessor::Fast/;
 use strict;
 use warnings;
-use Config::Pit;
+use Config::Pit qw/pit_get pit_set/;
 use Data::Dumper;
 use Encode qw/encode_utf8 decode_utf8/;
 use HTML::Entities qw/decode_entities/;
@@ -65,10 +65,24 @@ sub init {
     }
     $self->menu($menu);
 
+    $self->term(Term::ReadLine->new(''));
+
     my $c = pit_get('putweet');
+    unless (%$c) {
+        clear;
+        my $username = $self->term->readline('username? :');
+        my $password = $self->term->readline('password? :');
+        # I am not as kind as use Term::ReadPassword
+        $self->user($username);
+        my %c = (
+            traits   => [qw/API::REST/],
+            username => $username,
+            password => $password,
+        );
+        return $self->nt(Net::Twitter->new(%c));
+    }
     $self->nt(Net::Twitter->new($c));
 
-    $self->term(Term::ReadLine->new(''));
 
     my $user_list = pit_get('putweet_user_list');
     $self->user_list($user_list);
@@ -119,6 +133,8 @@ sub show_blocking {
 
 sub change_user {
     my ($self, $error) = @_;
+    return $self->done("you can't do this.") unless $self->user_list;
+
     clear and $error and say $error;
 
     my $i = 1;
