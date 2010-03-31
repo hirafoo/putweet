@@ -11,9 +11,11 @@ use Net::Twitter;
 use Term::ReadKey qw/GetTerminalSize/;
 use Term::ReadLine;
 use Time::Piece;
+use YAML::Syck qw/Load/;
+$YAML::Syck::ImplicitUnicode = 1;
 
 __PACKAGE__->mk_accessors(qw/
-    dispatch nt term user user_list
+    dispatch menu nt term user user_list
     _blocking_users _followers _friends _user_info
 /);
 
@@ -24,30 +26,44 @@ sub p {
     local $Data::Dumper::Terse  = 1;
     warn Dumper shift;
 }
+sub pp {
+    warn Dumper @_;
+    my @c = caller;
+    print STDERR "  at $c[1]:$c[2]\n\n"
+}
+sub parse_time {
+    my $created_at = shift;
+    Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400;
+}
+sub left {
+    my ($length, $str) = @_;
+    my $format = '%'. -$length . 's';
+    sprintf "$format", $str;
+}
+
 
 sub new { bless {}, shift }
 
 sub init {
     my ($self, @args) = @_;
 
-    $self->dispatch({qw/
-        a show_status 
-        b block_user
-        c change_user 
-        d direct_messages
-        e create_friend
-        f friends_timeline
-        h help
-        i friends
-        l show_blocking_users
-        m mentions
-        o followers
-        q quit
-        s user_timeline
-        t retweets_of_me
-        u update
-        w show_user
-    /});
+    $self->dispatch({});
+
+    my ($width) = GetTerminalSize;
+    my $data = do {local $/ = undef; <main::DATA>};
+    $data = Load $data;
+    my $menu = left(5,'cmd') . left(18,'method') . left(21,'args') . 'explanation' . "\n";
+    $menu .= "=" x $width;
+    $menu .= "\n";
+
+    for my $m (@{$data->{menu}}) {
+        my ($cmd, $method, $args, $explanation) = @$m;
+        $explanation ||= '';
+        my $str = left(5,$cmd) . left(18,$method) . left(21,$args) . $explanation . "\n";
+        $menu .= $str;
+        $self->dispatch->{$cmd} = $method;
+    }
+    $self->menu($menu);
 
     my $c = pit_get('putweet');
     $self->nt(Net::Twitter->new($c));
@@ -62,13 +78,12 @@ sub init {
 
 sub main_loop {
     my ($self, @args) = @_;
-
     clear and say "now login as -> " . $self->user and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
         $self->$func(@args);
     }
     else {
-        p $self->dispatch and say;
+        say $self->menu;
     }
     my @in = split ' ', $self->term->readline('putweet ');
     $self->main_loop(@in);
@@ -88,7 +103,7 @@ sub block_user {
     say and $self->done;
 }
 
-sub show_blocking_users {
+sub show_blocking {
     my $self = shift;
 
     say $self->_blocking_users and return $self->done if $self->_blocking_users;
@@ -211,7 +226,7 @@ sub print_status {
         my $reply_to = $status->{in_reply_to_status_id};
         $reply_to = $reply_to ? "in reply to $status->{in_reply_to_screen_name}" : '';
 
-        my $t = $self->_parse_time($status->{created_at});
+        my $t = parse_time($status->{created_at});
         my $num = sprintf '%2d', $i;
 
         say $line;
@@ -285,7 +300,7 @@ sub show_user {
     my @want = qw/id name screen_name lang url description location
                   time_zone statuses_count created_at friends_count followers_count/;
     @filterd{@want} = @res{@want};
-    my $t = $self->_parse_time($filterd{created_at});
+    my $t = parse_time($filterd{created_at});
     $filterd{created_at} = join " ", $t->ymd('/'), "(@{[$t->day]})", $t->hms;
 
     my %user_info;
@@ -333,11 +348,6 @@ sub help {
     say "ソース嫁" and say and $self->done
 }
 
-sub _parse_time {
-    my ($self, $created_at) = @_;
-    Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400;
-}
-
 sub quit {
     my ($self, @args) = @_;
     say "bye." and exit
@@ -351,5 +361,85 @@ my $putweet = Putweet->new;
 $putweet->init;
 $putweet->main_loop while 1;
 
-#TODO
-#use Term::Shell ?
+__DATA__
+menu:
+  -
+    - a
+    - show_status
+    - status_id
+    - show the id's status
+  -
+    - b
+    - block_user
+    - user_id/screen_name
+    - ~
+  -
+    - c
+    - change_user
+    - none
+    - ~
+  -
+    - d
+    - direct_messages
+    - count?
+    - show your direct messages
+  -
+    - e
+    - create_friend
+    - user_id/screen_name
+    - ~
+  -
+    - f
+    - friends_timeline
+    - count?
+    - ~
+  -
+    - h
+    - help
+    - none
+    - ~
+  -
+    - i
+    - friends
+    - none
+    - show your friends
+  -
+    - l
+    - show_blocking
+    - none
+    - ~
+  -
+    - m
+    - mentions
+    - count?
+    - ~
+  -
+    - o
+    - followers
+    - none
+    - show your followers
+  -
+    - q
+    - quit
+    - none
+    - ~
+  -
+    - s
+    - user_timeline
+    - id/screen_name
+    - show one user's timeline
+  -
+    - t
+    - retweets_of_me
+    - count?
+    - show your RTed status
+  -
+    - u
+    - update
+    - status
+    - ~
+  -
+    - w
+    - show_user
+    - user_id/scren_name
+    - show the user's status
