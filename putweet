@@ -209,6 +209,7 @@ sub update {
     my $status = join " ", @args;
     my $_status = decode_utf8 $status;
     if (140 < length $_status) {
+        say "status cut 140 chars.";
         $status = substr($_status, 0, 140);
         $status = encode_utf8 $status;
     }
