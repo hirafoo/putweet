@@ -105,6 +105,7 @@ sub main_loop {
 sub done {
     my ($self, $message) = @_;
     say $message if $message;
+    say;
     my $done = $self->term->readline("done.");
     $self->main_loop;
 }
@@ -113,7 +114,7 @@ sub block_user {
     my ($self, $screen_name) = @_;
     return $self->done("input user screen_name.") unless $screen_name;
     $self->nt->create_block($screen_name);
-    say and $self->done;
+    $self->done;
 }
 
 sub show_blocking {
@@ -308,7 +309,7 @@ sub ask_reaction {
 sub show_user {
     my ($self, $id) = @_;
     $id ||= $self->user;
-    say $self->_user_info->{body} and say and return $self->done
+    say $self->_user_info->{body} and return $self->done
         if $self->_user_info and $self->_user_info->{id} eq $id;
 
     my %res = %{$self->nt->show_user($id)};
@@ -335,21 +336,21 @@ sub show_user {
 sub followers {
     my ($self, @args) = @_;
 
-    say $self->_followers and say and return $self->done if $self->_followers;
+    say $self->_followers and return $self->done if $self->_followers;
     my $followers;
     $followers .= "$_->{screen_name} " for @{$self->nt->followers};
     $self->_followers($followers);
-    say $self->_followers and say and return $self->done;
+    say $self->_followers and return $self->done;
 }
 
 sub friends {
     my ($self, @args) = @_;
 
-    say $self->_friends and say and return $self->done if $self->_friends;
+    say $self->_friends and return $self->done if $self->_friends;
     my $friends;
     $friends .= "$_->{screen_name} " for @{$self->nt->friends};
     $self->_friends($friends);
-    say $self->_friends and say and return $self->done;
+    say $self->_friends and return $self->done;
 }
 
 sub retweets_of_me {
@@ -361,7 +362,7 @@ sub retweets_of_me {
 
 sub help {
     my ($self, @args) = @_;
-    say "ソース嫁" and say and $self->done
+    say "ソース嫁" and $self->done
 }
 
 sub quit {
