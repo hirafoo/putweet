@@ -83,7 +83,6 @@ sub init {
     }
     $self->nt(Net::Twitter->new($c));
 
-
     my $user_list = pit_get('putweet_user_list');
     $self->user_list($user_list);
 
