@@ -242,8 +242,10 @@ sub print_status {
     my ($width) = GetTerminalSize;
     my $line = "=" x $width;
     for my $status (@$statuses) {
-        $status->{source} =~ m{<.*?>(.+)</a>};
-        my $source = $1 || $status->{source};
+        my $source ||= $status->{source};
+        if ($status->{source} =~ m{<.*?>(.+)</a>}) {
+            $source = $1;
+        }
         $source = encode_utf8 $source if utf8::is_utf8($source);
 
         my $reply_to = $status->{in_reply_to_status_id};
