@@ -16,7 +16,7 @@ $YAML::Syck::ImplicitUnicode = 1;
 
 __PACKAGE__->mk_accessors(qw/
     dispatch menu nt term user user_list
-    _blocking_users _followers _friends _user_info
+    _blocking_users _followers _friends _user_info _list_memberships
 /);
 
 sub clear { system('clear') + 1 }
@@ -80,7 +80,7 @@ sub init {
         # I am not as kind as use Term::ReadPassword
         $self->user($username);
         my %c = (
-            traits   => [qw/API::REST/],
+            traits   => [qw/API::REST API::Lists/],
             username => $username,
             password => $password,
         );
@@ -156,7 +156,7 @@ sub change_user {
     $self->nt->access_token($c_user->{access_token});
     $self->nt->access_token_secret($c_user->{access_token_secret});
     $self->user($user);
-    $self->$_(undef) for qw/_blocking_users _followers _friends _user_info/;
+    $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships/;
     $self->done;
 }
 
@@ -366,6 +366,24 @@ sub retweets_of_me {
     $self->print_status($statuses) and $self->done;
 }
 
+sub list_memberships {
+    my ($self, $screen_name) = @_;
+    $screen_name ||= $self->user;
+    say $self->_list_memberships and return $self->done if $self->_list_memberships;
+
+    my $lists = $self->nt->list_memberships($screen_name);
+    my ($_list_memberships, @list_memberships);
+
+    for my $list (@{$lists->{lists}}) {
+        push @list_memberships, "$list->{user}->{screen_name} / $list->{name}\n";
+    }
+
+    $_list_memberships .= "you listed number: " . @list_memberships . "\n\n";
+    $_list_memberships .= $_ for @list_memberships;
+    $self->_list_memberships($_list_memberships);
+    say $self->_list_memberships and return $self->done;
+}
+
 sub help {
     my ($self, @args) = @_;
     say "ソース嫁" and $self->done
@@ -393,6 +411,7 @@ menu:
     - message
     - friend
     - block
+    - lists
     - system
   contents:
     -
@@ -464,6 +483,12 @@ menu:
       -
         - l
         - show_blocking
+        - none
+        - ~
+    -
+      -
+        - p
+        - list_memberships
         - none
         - ~
     -
