@@ -52,16 +52,21 @@ sub init {
     my ($width) = GetTerminalSize;
     my $data = do {local $/ = undef; <main::DATA>};
     $data = Load $data;
-    my $menu = left(5, 'cmd') . left(18, 'method') . left(21, 'args') . 'explanation' . "\n";
-    $menu .= "=" x $width;
-    $menu .= "\n";
+    my $menu = left(9, 'type') . left(5, 'cmd') . left(18, 'method') . left(21, 'args') . "explanation\n";
+    $menu .= "=" x $width . "\n";
 
-    for my $m (@{$data->{menu}}) {
-        my ($cmd, $method, $args, $explanation) = @$m;
-        $explanation ||= '';
-        my $str = left(5, $cmd) . left(18, $method) . left(21, $args) . $explanation . "\n";
-        $menu .= $str;
-        $self->dispatch->{$cmd} = $method;
+    my @menu_items = @{$data->{menu}->{item}};
+    my $menu_contents = $data->{menu}->{contents};
+
+    for (my $i = 0; $i < @menu_items; $i++) {
+        $menu .= "$menu_items[$i]\n";
+        for my $contents (@{$data->{menu}->{contents}->[$i]}) {
+            my ($cmd, $method, $args, $explanation) = @$contents;
+            $explanation ||= '';
+            my $str = ' ' x 9 . left(5, $cmd) . left(18, $method) . left(21, $args) . $explanation . "\n";
+            $menu .= $str;
+            $self->dispatch->{$cmd} = $method;
+        }
     }
     $self->menu($menu);
 
@@ -222,6 +227,7 @@ sub update {
 
 sub user_timeline {
     my ($self, $screen_name, $count) = @_;
+    $screen_name or return $self->done('args: id/screen_name');
     $count ||= 5;
 
     my $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count});
@@ -380,83 +386,99 @@ $putweet->main_loop while 1;
 
 __DATA__
 menu:
-  -
-    - a
-    - show_status
-    - status_id
-    - show the id's status
-  -
-    - b
-    - block_user
-    - user_id/screen_name
-    - ~
-  -
-    - c
-    - change_user
-    - none
-    - ~
-  -
-    - d
-    - direct_messages
-    - count?
-    - show your direct messages
-  -
-    - e
-    - create_friend
-    - user_id/screen_name
-    - ~
-  -
-    - f
-    - friends_timeline
-    - count?
-    - ~
-  -
-    - h
-    - help
-    - none
-    - ~
-  -
-    - i
-    - friends
-    - none
-    - show your friends
-  -
-    - l
-    - show_blocking
-    - none
-    - ~
-  -
-    - m
-    - mentions
-    - count?
-    - ~
-  -
-    - o
-    - followers
-    - none
-    - show your followers
-  -
-    - q
-    - quit
-    - none
-    - ~
-  -
-    - s
-    - user_timeline
-    - id/screen_name
-    - show one user's timeline
-  -
-    - t
-    - retweets_of_me
-    - count?
-    - show your RTed status
-  -
-    - u
-    - update
+  item:
+    - timeline
     - status
-    - ~
-  -
-    - w
-    - show_user
-    - user_id/scren_name?
-    - show the user's status
+    - user
+    - message
+    - friend
+    - block
+    - system
+  contents:
+    -
+      -
+        - f
+        - friends_timeline
+        - count?
+        - ~
+      -
+        - m
+        - mentions
+        - count?
+        - ~
+      -
+        - s
+        - user_timeline
+        - id/screen_name
+        - show one user's timeline
+      -
+        - t
+        - retweets_of_me
+        - count?
+        - show your RTed status
+    -
+      -
+        - a
+        - show_status
+        - status_id
+        - show the id's status
+      -
+         - u
+         - update
+         - status
+         - ~
+    -
+      -
+        - i
+        - friends
+        - none
+        - show your friends
+      -
+        - o
+        - followers
+        - none
+        - show your followers
+      -
+        - w
+        - show_user
+        - user_id/scren_name?
+        - show the user's status
+    -
+      -
+        - d
+        - direct_messages
+        - count?
+        - show your direct messages
+    -
+      -
+        - e
+        - create_friend
+        - user_id/screen_name
+        - ~
+    -
+      -
+        - b
+        - block_user
+        - user_id/screen_name
+        - ~
+      -
+        - l
+        - show_blocking
+        - none
+        - ~
+    -
+      -
+        - c
+        - change_user
+        - none
+        - ~
+      -
+        - h
+        - help
+        - none
+        - ~
+      -
+        - q
+        - quit
+        - none
+        - ~
