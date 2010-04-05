@@ -52,7 +52,7 @@ sub init {
     my ($width) = GetTerminalSize;
     my $data = do {local $/ = undef; <main::DATA>};
     $data = Load $data;
-    my $menu = left(9, 'type') . left(5, 'cmd') . left(18, 'method') . left(21, 'args') . "explanation\n";
+    my $menu = left(10, 'type') . left(5, 'cmd') . left(18, 'method') . left(21, 'args') . "explanation\n";
     $menu .= "=" x $width . "\n";
 
     my @menu_items = @{$data->{menu}->{item}};
@@ -63,7 +63,7 @@ sub init {
         for my $contents (@{$data->{menu}->{contents}->[$i]}) {
             my ($cmd, $method, $args, $explanation) = @$contents;
             $explanation ||= '';
-            my $str = ' ' x 9 . left(5, $cmd) . left(18, $method) . left(21, $args) . $explanation . "\n";
+            my $str = ' ' x 10 . left(5, $cmd) . left(18, $method) . left(21, $args) . $explanation . "\n";
             $menu .= $str;
             $self->dispatch->{$cmd} = $method;
         }
