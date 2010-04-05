@@ -178,10 +178,18 @@ sub direct_messages {
 
 sub create_friend {
     my ($self, $screen_name) = @_;
-    $screen_name or return $self->done('args: screen_name');
+    $screen_name or return $self->done('args: id/screen_name');
 
     $self->nt->create_friend($screen_name);
     $self->done("now following $screen_name.");
+}
+
+sub destroy_friend {
+    my ($self, $screen_name) = @_;
+    $screen_name or return $self->done('args: id/screen_name');
+
+    $self->nt->destroy_friend($screen_name);
+    $self->done("destroy friendship $screen_name.");
 }
 
 sub friends_timeline {
@@ -473,6 +481,11 @@ menu:
       -
         - e
         - create_friend
+        - user_id/screen_name
+        - ~
+      -
+        - r
+        - destroy_friend
         - user_id/screen_name
         - ~
     -
