@@ -242,8 +242,9 @@ sub print_status {
     my ($width) = GetTerminalSize;
     my $line = "=" x $width;
     for my $status (@$statuses) {
-        my $source = $status->{source};
-        $status->{source} =~ m{<.*?>(.+)</a>} and $source = $1;
+        my $source = $status->{source} || '';
+        $status->{source} and $status->{source} =~ m{<.*?>(.+)</a>} and $source = $1;
+        $source and $source = "via $source";
         $source = encode_utf8 $source if utf8::is_utf8($source);
 
         my $reply_to = $status->{in_reply_to_status_id};
@@ -256,7 +257,7 @@ sub print_status {
         say join " ",
         "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
         ($status->{user}{screen_name} or $status->{sender}{screen_name}),
-        "via $source $reply_to";
+        "$source $reply_to";
         say;
         say decode_entities encode_utf8 $status->{text};
 
