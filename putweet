@@ -304,11 +304,13 @@ sub ask_reaction {
     }
     elsif (my ($k) = $in =~ m/^([rw])\d+$/) {
         $in =~ s/$k//;
+        say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
         my $status = $self->term->readline('str: ');
         $status = $status . " RT @" . encode_utf8 "$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}";
         $k eq 'w' ? $self->update($status) : $self->update($statuses->[$in]->{id}, $status);
     }
     elsif ($in =~ m/^\d+$/ and $statuses->[$in]) {
+        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
         my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
         $status = "\@$statuses->[$in]->{user}{screen_name} $status";
         $self->update($statuses->[$in]->{id}, $status);
