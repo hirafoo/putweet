@@ -32,8 +32,9 @@ sub pp {
     print STDERR "  at $c[1]:$c[2]\n\n"
 }
 sub parse_time {
-    my $created_at = shift;
-    Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400
+    my ($created_at, $opt) = @_;
+    $opt ? (Time::Piece->strptime($created_at, '%a, %d %b %Y %H:%M:%S +0000') + 32400)
+         : (Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400);
 }
 sub left {
     my ($length, $str) = @_;
@@ -80,7 +81,7 @@ sub init {
         # I am not as kind as use Term::ReadPassword
         $self->user($username);
         my %c = (
-            traits   => [qw/API::REST API::Lists/],
+            traits   => [qw/API::Lists API::REST API::Search/],
             username => $username,
             password => $password,
         );
@@ -253,27 +254,27 @@ sub user_timeline {
 }
 
 sub print_status {
-    my ($self, $statuses) = @_;
+    my ($self, $statuses, $opt) = @_;
 
     my $i = 0;
     my ($width) = GetTerminalSize;
     my $line = "=" x $width;
     for my $status (@$statuses) {
-        my $source = $status->{source} || '';
-        $status->{source} and $status->{source} =~ m{<.*?>(.+)</a>} and $source = $1;
+        my $source = decode_entities $status->{source} || '';
+        $source and $source =~ m{<.*?>(.+)</a>} and $source = $1;
         $source and $source = "via $source";
         $source = encode_utf8 $source if utf8::is_utf8($source);
 
         my $reply_to = $status->{in_reply_to_status_id};
         $reply_to = $reply_to ? "in reply to $status->{in_reply_to_screen_name}" : '';
 
-        my $t = parse_time($status->{created_at});
+        my $t = parse_time($status->{created_at}, $opt);
         my $num = sprintf '%2d', $i;
 
         say $line;
         say join " ",
         "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
-        ($status->{user}{screen_name} or $status->{sender}{screen_name}),
+        ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user}),
         "$source $reply_to";
         say;
         say decode_entities encode_utf8 $status->{text};
@@ -404,6 +405,17 @@ sub list_memberships {
     say $self->_list_memberships and return $self->done;
 }
 
+sub search {
+    my ($self, @words) = @_;
+    @words or return $self->done('args: word[s]');
+
+    my $word = join "", @words;
+    my $statuses = $self->nt->search({q => $word, lang => 'ja'})->{results};
+    $self->print_status($statuses, 1);
+    $self->ask_reaction($statuses);
+    $self->done;
+}
+
 sub help {
     my ($self, @args) = @_;
     say "ソース嫁" and $self->done
@@ -432,6 +444,7 @@ menu:
     - friend
     - block
     - lists
+    - search
     - system
   contents:
     -
@@ -521,6 +534,12 @@ menu:
         - list_memberships
         - none
         - ~
+    -
+      -
+        - z
+        - search
+        - word
+        - search from tweets
     -
       -
         - c
