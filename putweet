@@ -160,8 +160,17 @@ sub change_user {
     $self->done;
 }
 
+sub destroy_status {
+    my ($self, $id) = @_;
+    $id or return $self->done('args: status id');
+
+    $self->nt->destroy_status({id => $id});
+    $self->done;
+}
+
 sub show_status {
     my ($self, $id) = @_;
+    $id or return $self->done('args: status id');
 
     my $status = $self->nt->show_status({id => $id});
     $self->print_status([$status]);
@@ -453,10 +462,15 @@ menu:
         - status_id
         - show the id's status
       -
-         - u
-         - update
-         - status
-         - ~
+        - y
+        - destroy_status
+        - status_id
+        - ~
+      -
+        - u
+        - update
+        - status
+        - ~
     -
       -
         - i
