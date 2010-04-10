@@ -15,7 +15,7 @@ use YAML::Syck qw/Load/;
 $YAML::Syck::ImplicitUnicode = 1;
 
 __PACKAGE__->mk_accessors(qw/
-    dispatch menu nt term user user_list
+    dispatch menu nt term user user_list tweetable
     _blocking_users _followers _friends _user_info _list_memberships
 /);
 
@@ -157,6 +157,7 @@ sub change_user {
     $self->nt->access_token($c_user->{access_token});
     $self->nt->access_token_secret($c_user->{access_token_secret});
     $self->user($user);
+    $self->tweetable($c_user->{tweetable});
     $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships/;
     $self->done;
 }
@@ -224,6 +225,9 @@ sub update {
     my ($self, @args) = @_;
     $args[0] or $self->done('args: status');
 
+    unless ($self->tweetable) {
+        say "you are not tweetable." and return $self->done;
+    }
     my $post_param;
     if ($args[0] =~ m/^\d+$/) {
         $post_param->{in_reply_to_status_id} = shift @args;
