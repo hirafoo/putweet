@@ -300,6 +300,7 @@ sub ask_reaction {
     " w[number] : RT (unofficial and without in_reply_to_status_id)",
     " f[number] : follow time line",
     " b[number] : block user",
+    " d[number] : delete your status",
     "  [other]  : end",
     "---------------------------",
     "";
@@ -335,6 +336,12 @@ sub ask_reaction {
         my $block_name = $statuses->[$in]->{user}{screen_name};
         $self->block_user($block_name);
     }
+    elsif ($in =~ m/^d\d+$/) {
+        $in =~ s/d//;
+        my $id = $statuses->[$in]->{id};
+        $self->destroy_status($id);
+    }
+
     $self->done;
 }
 
