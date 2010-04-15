@@ -267,7 +267,8 @@ sub print_status {
         my $source = decode_entities $status->{source} || '';
         my $source_url;
         $source and $source =~ m{<.*?href="(.*?)".*?>(.+)</a>} and $source_url = $1 and $source = $2;
-        $source = $source_url ? "via $source $source_url" : "via $source";
+        $source and $source_url and $source .= " $source_url";
+        $source and $source = "via $source";
         $source = encode_utf8 $source if utf8::is_utf8($source);
 
         my $reply_to = $status->{in_reply_to_status_id};
