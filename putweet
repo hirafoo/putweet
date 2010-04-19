@@ -281,7 +281,7 @@ sub print_status {
         say join " ",
         "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
         ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user}),
-        "$source $reply_to";
+        $status->{id}, "$source $reply_to";
         say;
         say decode_entities encode_utf8 $status->{text};
 
