@@ -300,6 +300,7 @@ sub ask_reaction {
     " r[number] : RT (unofficial)",
     " w[number] : RT (unofficial and without in_reply_to_status_id)",
     " f[number] : follow time line",
+    " s[number] : show user's timeline",
     " b[number] : block user",
     " d[number] : delete your status",
     "  [other]  : end",
@@ -331,6 +332,11 @@ sub ask_reaction {
         my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
         $status = "\@$statuses->[$in]->{user}{screen_name} $status";
         $self->update($statuses->[$in]->{id}, $status);
+    }
+    elsif ($in =~ m/^s\d+$/) {
+        $in =~ s/s//;
+        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        $self->user_timeline($screen_name);
     }
     elsif ($in =~ m/^b\d+$/) {
         $in =~ s/b//;
