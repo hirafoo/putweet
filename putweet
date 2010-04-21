@@ -435,6 +435,15 @@ sub search {
     $self->done;
 }
 
+sub favorites {
+    my ($self, $screen_id) = @_;
+    $screen_id ||= $self->user;
+
+    my $statuses = $self->nt->favorites({id => $screen_id});
+    $self->print_status($statuses);
+    $self->done;
+}
+
 sub help {
     my ($self, @args) = @_;
     say "ソース嫁" and $self->done
@@ -463,6 +472,7 @@ menu:
     - friend
     - block
     - lists
+    - favorites
     - search
     - system
   contents:
@@ -553,6 +563,12 @@ menu:
         - list_memberships
         - none
         - ~
+    -
+      -
+        - g
+        - favorites
+        - screen_id?
+        - show your favorites
     -
       -
         - z
