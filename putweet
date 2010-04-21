@@ -369,11 +369,29 @@ sub show_user {
     my %user_info;
     $user_info{id} = $id;
     for my $key (@want) {
-        $filterd{$key} = encode_utf8 $filterd{$key} if $filterd{$key} and utf8::is_utf8($filterd{$key});
-        $filterd{$key} ||= '';
+        my $s1 = 54;
+        my $s2 = $s1 - 15;
+        if ($s1 < (length $filterd{$key})) {
+            no warnings;
+            my $rest = substr($filterd{$key}, 0, $s2);
+            $filterd{$key} = substr($filterd{$key}, $s2);
+            $rest = encode_utf8 $rest if utf8::is_utf8($rest);
+            my $key2 = sprintf "%-15s", $key;
+            $user_info{body} .= "$key2 $rest\n";
+            while ($filterd{$key}) {
+                $rest = substr($filterd{$key}, 0, $s1);
+                $filterd{$key} = substr($filterd{$key}, $s1);
+                $rest = encode_utf8 $rest if utf8::is_utf8($rest);
+                $user_info{body} .= " " x 15 . "$rest\n";
+            }
+        }
+        else {
+            $filterd{$key} = encode_utf8 $filterd{$key} if $filterd{$key} and utf8::is_utf8($filterd{$key});
+            $filterd{$key} ||= '';
 
-        my $key2 = sprintf "%-15s", $key;
-        $user_info{body} .= "$key2 $filterd{$key}\n";
+            my $key2 = sprintf "%-15s", $key;
+            $user_info{body} .= "$key2 $filterd{$key}\n";
+        }
     }
     $self->_user_info(\%user_info);
     say $self->_user_info->{body} and $self->done;
