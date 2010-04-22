@@ -393,8 +393,9 @@ sub show_user {
             $user_info{body} .= "$key2 $filterd{$key}\n";
         }
     }
-    $self->_user_info(\%user_info);
-    say $self->_user_info->{body} and $self->done;
+    say $user_info{body};
+    $self->_user_info(\%user_info) if $id eq $self->user;
+    $self->done;
 }
 
 sub followers {
