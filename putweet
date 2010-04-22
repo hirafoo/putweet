@@ -13,6 +13,7 @@ use Term::ReadLine;
 use Time::Piece;
 use YAML::Syck qw/Load/;
 $YAML::Syck::ImplicitUnicode = 1;
+my $COUNT = 10;
 
 __PACKAGE__->mk_accessors(qw/
     dispatch menu nt term user user_list tweetable
@@ -181,7 +182,7 @@ sub show_status {
 
 sub direct_messages {
     my ($self, $count) = @_;
-    $count ||= 5;
+    $count ||= $COUNT;
 
     my $statuses = $self->nt->direct_messages({count => $count});
     $self->print_status($statuses) and $self->done;
@@ -205,7 +206,7 @@ sub destroy_friend {
 
 sub friends_timeline {
     my ($self, $count) = @_;
-    $count ||= 5;
+    $count ||= $COUNT;
 
     my $statuses = $self->nt->friends_timeline({count => $count});
     $self->print_status($statuses);
@@ -214,7 +215,7 @@ sub friends_timeline {
 
 sub mentions {
     my ($self, $count) = @_;
-    $count ||= 5;
+    $count ||= $COUNT;
 
     my $statuses = $self->nt->mentions({count => $count});
     $self->print_status($statuses);
@@ -250,7 +251,7 @@ sub update {
 sub user_timeline {
     my ($self, $screen_name, $count) = @_;
     $screen_name or return $self->done('args: id/screen_name');
-    $count ||= 5;
+    $count ||= $COUNT;
 
     my $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count});
     $self->print_status($statuses);
@@ -420,7 +421,7 @@ sub friends {
 
 sub retweets_of_me {
     my ($self, $count) = @_;
-    $count ||= 5;
+    $count ||= $COUNT;
     my $statuses = $self->nt->retweets_of_me({count => $count});
     $self->print_status($statuses) and $self->done;
 }
