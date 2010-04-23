@@ -301,23 +301,42 @@ sub print_status {
 sub ask_reaction {
     my ($self, $statuses) = @_;
 
+    say;
     say join "\n", 
-    "",
     "---------------------------",
     "  [number] : reply",
+    " w[number] : show user's info",
     " r[number] : RT (unofficial)",
-    " w[number] : RT (unofficial and without in_reply_to_status_id)",
+    " t[number] : RT (unofficial and without in_reply_to_status_id)",
     " f[number] : follow time line",
     " s[number] : show user's timeline",
     " p[number] : report for spam",
     " b[number] : block user",
     " d[number] : delete your status",
     "  [other]  : end",
-    "---------------------------",
-    "";
+    "---------------------------";
+    say;
 
     my $in = $self->term->readline('input: ');
-    if ($in =~ m/^f\d+$/) {
+    if ($in =~ m/^\d+$/ and $statuses->[$in]) {
+        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
+        my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
+        $status = "\@$statuses->[$in]->{user}{screen_name} $status";
+        $self->update($statuses->[$in]->{id}, $status);
+    }
+    elsif ($in =~ m/^w\d+$/) {
+        $in =~ s/w//;
+        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        $self->show_user($screen_name);
+    }
+    elsif (my ($k) = $in =~ m/^([rt])\d+$/) {
+        $in =~ s/$k//;
+        say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
+        my $status = $self->term->readline('str: ');
+        $status = $status . " RT @" . encode_utf8 "$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}";
+        $k eq 't' ? $self->update($status) : $self->update($statuses->[$in]->{id}, $status);
+    }
+    elsif ($in =~ m/^f\d+$/) {
         $in =~ s/f//;
         my $reply_id = $statuses->[$in]->{in_reply_to_status_id};
         if ($reply_id) {
@@ -329,19 +348,6 @@ sub ask_reaction {
             say "can not follow. there is no 'in_reply_to_status_id'";
         }
     }
-    elsif (my ($k) = $in =~ m/^([rw])\d+$/) {
-        $in =~ s/$k//;
-        say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
-        my $status = $self->term->readline('str: ');
-        $status = $status . " RT @" . encode_utf8 "$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}";
-        $k eq 'w' ? $self->update($status) : $self->update($statuses->[$in]->{id}, $status);
-    }
-    elsif ($in =~ m/^\d+$/ and $statuses->[$in]) {
-        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
-        my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
-        $status = "\@$statuses->[$in]->{user}{screen_name} $status";
-        $self->update($statuses->[$in]->{id}, $status);
-    }
     elsif ($in =~ m/^s\d+$/) {
         $in =~ s/s//;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
@@ -352,15 +358,15 @@ sub ask_reaction {
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->report_spam($screen_name);
     }
-    elsif ($in =~ m/^b\d+$/) {
-        $in =~ s/b//;
-        my $block_name = $statuses->[$in]->{user}{screen_name};
-        $self->block_user($block_name);
-    }
     elsif ($in =~ m/^d\d+$/) {
         $in =~ s/d//;
         my $id = $statuses->[$in]->{id};
         $self->destroy_status($id);
+    }
+    elsif ($in =~ m/^b\d+$/) {
+        $in =~ s/b//;
+        my $block_name = $statuses->[$in]->{user}{screen_name};
+        $self->block_user($block_name);
     }
 
     $self->done;
@@ -561,7 +567,7 @@ menu:
         - w
         - show_user
         - user_id/scren_name?
-        - show the user's status
+        - show the user's info
     -
       -
         - d
