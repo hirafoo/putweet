@@ -138,6 +138,13 @@ sub show_blocking {
     say $self->_blocking_users and return $self->done;
 }
 
+sub report_spam {
+    my ($self, $id) = @_;
+    return $self->done("args: id/scree_name") unless $id;
+    $self->nt->report_spam($id);
+    $self->done;
+}
+
 sub change_user {
     my ($self, $error) = @_;
     return $self->done("you can't do this.") unless $self->user_list;
@@ -576,6 +583,11 @@ menu:
         - l
         - show_blocking
         - none
+        - ~
+      -
+        - n
+        - report_spam
+        - id/screen_name
         - ~
     -
       -
