@@ -13,7 +13,7 @@ use Term::ReadLine;
 use Time::Piece;
 use YAML::Syck qw/Load/;
 $YAML::Syck::ImplicitUnicode = 1;
-my $COUNT = 10;
+my $COUNT = 5;
 
 __PACKAGE__->mk_accessors(qw/
     dispatch menu nt term user user_list tweetable
@@ -142,7 +142,7 @@ sub report_spam {
     my ($self, $id) = @_;
     return $self->done("args: id/scree_name") unless $id;
     $self->nt->report_spam($id);
-    $self->done;
+    $self->done("report spam and block: $id");
 }
 
 sub change_user {
@@ -309,6 +309,7 @@ sub ask_reaction {
     " w[number] : RT (unofficial and without in_reply_to_status_id)",
     " f[number] : follow time line",
     " s[number] : show user's timeline",
+    " p[number] : report for spam",
     " b[number] : block user",
     " d[number] : delete your status",
     "  [other]  : end",
@@ -345,6 +346,11 @@ sub ask_reaction {
         $in =~ s/s//;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->user_timeline($screen_name);
+    }
+    elsif ($in =~ m/^p\d+$/) {
+        $in =~ s/p//;
+        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        $self->report_spam($screen_name);
     }
     elsif ($in =~ m/^b\d+$/) {
         $in =~ s/b//;
