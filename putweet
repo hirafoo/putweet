@@ -119,7 +119,7 @@ sub done {
 
 sub block_user {
     my ($self, $screen_name) = @_;
-    return $self->done("input user screen_name.") unless $screen_name;
+    return $self->done("args: screen_name.") unless $screen_name;
     $self->nt->create_block($screen_name);
     $self->done;
 }
@@ -389,6 +389,7 @@ sub show_user {
     my %user_info;
     $user_info{id} = $id;
     for my $key (@want) {
+        $filterd{$key} ||= '';
         my $s1 = 54;
         my $s2 = $s1 - 15;
         if ($s1 < (length $filterd{$key})) {
@@ -407,7 +408,6 @@ sub show_user {
         }
         else {
             $filterd{$key} = encode_utf8 $filterd{$key} if $filterd{$key} and utf8::is_utf8($filterd{$key});
-            $filterd{$key} ||= '';
 
             my $key2 = sprintf "%-15s", $key;
             $user_info{body} .= "$key2 $filterd{$key}\n";
