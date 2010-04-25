@@ -211,6 +211,19 @@ sub destroy_friend {
     $self->done("destroy friendship $screen_name.");
 }
 
+sub rel_exists {
+    my ($self, $id1, $id2) = @_;
+    ($id1 and $id2) or return $self->done('args: screen_name * 2');
+
+    my $res1 = $self->nt->friendship_exists($id1, $id2);
+    my $res2 = $self->nt->friendship_exists($id2, $id1);
+    my %rel = (0 => 'not ', 1 => '');
+
+    say "$id1 $rel{$res1}following $id2";
+    say "$id2 $rel{$res2}following $id1";
+    $self->done;
+}
+
 sub friends_timeline {
     my ($self, $count) = @_;
     $count ||= $COUNT;
@@ -589,6 +602,11 @@ menu:
         - r
         - destroy_friend
         - user_id/screen_name
+        - ~
+      -
+        - x
+        - rel_exists
+        - screen_name * 2
         - ~
     -
       -
