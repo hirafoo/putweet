@@ -450,14 +450,19 @@ sub list_memberships {
     $screen_name ||= $self->user;
     say $self->_list_memberships and return $self->done if $self->_list_memberships;
 
-    my $lists = $self->nt->list_memberships($screen_name);
+    my $lists = $self->nt->list_memberships({user => $screen_name, cursor => -1});
     my ($_list_memberships, @list_memberships);
 
-    for my $list (@{$lists->{lists}}) {
-        push @list_memberships, "$list->{user}->{screen_name} / $list->{name}\n";
-    }
+    my $i = 1;
+    do {
+        for my $list (@{$lists->{lists}}) {
+            push @list_memberships, "$list->{full_name} :". encode_utf8($list->{description} or '') . "\n";
+        }
+        my $lists_next = $self->nt->list_memberships({user => $screen_name, cursor => $lists->{next_cursor}});
+        $lists = $lists->{next_cursor} ? $lists_next : undef;
+    } while ($lists);
 
-    $_list_memberships .= "you listed number: " . @list_memberships . "\n\n";
+    $_list_memberships .= "list number: " . @list_memberships . "\n\n";
     $_list_memberships .= $_ for @list_memberships;
     $self->_list_memberships($_list_memberships);
     say $self->_list_memberships and return $self->done;
