@@ -121,7 +121,7 @@ sub block_user {
     my ($self, $screen_name) = @_;
     return $self->done("args: screen_name.") unless $screen_name;
     $self->nt->create_block($screen_name);
-    $self->done;
+    $self->done("block: $screen_name");
 }
 
 sub show_blocking {
