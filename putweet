@@ -322,6 +322,7 @@ sub ask_reaction {
     " r[number] : RT (unofficial)",
     " t[number] : RT (unofficial and without in_reply_to_status_id)",
     " f[number] : follow time line",
+    " v[number] : favorite the status",
     " s[number] : show user's timeline",
     " p[number] : report for spam",
     " b[number] : block user",
@@ -360,6 +361,13 @@ sub ask_reaction {
         else {
             say "can not follow. there is no 'in_reply_to_status_id'";
         }
+    }
+    elsif ($in =~ m/^v\d+$/) {
+        $in =~ s/v//;
+        my $id = $statuses->[$in]->{id};
+        my $user = $statuses->[$in]->{user}{screen_name};
+        my $text = encode_utf8 $statuses->[$in]->{text};
+        $self->nt->create_favorite($id) and return $self->done("favorite:\n$user\:$text");
     }
     elsif ($in =~ m/^s\d+$/) {
         $in =~ s/s//;
