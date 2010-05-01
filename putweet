@@ -122,7 +122,9 @@ sub init_statuses {
         for my $status (@$statuses) {
             $STATUSES{$tl_name}->{$status->{id}} = $status;
         }
+        say "got $tl_name";
     }
+    say "update!";
     $last_updated = localtime;
 }
 
@@ -205,6 +207,7 @@ sub change_user {
     $self->tweetable($c_user->{tweetable});
     $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships/;
     undef $last_updated;
+    say 'getting statuses. wait a moment...';
     $self->init_statuses;
     $self->done("user: $user");
 }
