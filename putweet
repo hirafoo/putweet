@@ -13,7 +13,10 @@ use Term::ReadLine;
 use Time::Piece;
 use YAML::Syck qw/Load/;
 $YAML::Syck::ImplicitUnicode = 1;
-my $COUNT = 5;
+
+my ($COUNT, $PER) = (5, 300);
+my (%STATUSES, $last_updated);
+my @TL_TYPES =qw/friends_timeline mentions direct_messages favorites retweets_of_me/;
 
 __PACKAGE__->mk_accessors(qw/
     dispatch menu nt term user user_list tweetable
@@ -35,7 +38,7 @@ sub pp {
 sub parse_time {
     my ($created_at, $opt) = @_;
     $opt ? (Time::Piece->strptime($created_at, '%a, %d %b %Y %H:%M:%S +0000') + 32400)
-         : (Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y') + 32400);
+         : (Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y')  + 32400);
 }
 sub left {
     my ($length, $str) = @_;
@@ -43,6 +46,16 @@ sub left {
     sprintf "$format", $str
 }
 
+sub _passed {
+    if (ref $last_updated) {
+        my $now = localtime;
+        my $diff = $now - $last_updated;
+        ($diff->seconds < $PER) ? 0 : 1;
+    }
+    else {
+        1
+    }
+}
 
 sub new { bless {}, shift }
 
@@ -50,6 +63,7 @@ sub init {
     my ($self, @args) = @_;
 
     $self->dispatch({});
+    $STATUSES{$_} = {} for (@TL_TYPES);
 
     my ($width) = GetTerminalSize;
     my $data = do {local $/ = undef; <main::DATA>};
@@ -96,6 +110,29 @@ sub init {
     $self->change_user;
 }
 
+sub init_statuses {
+    my $self = shift;
+
+    my %tl_opt = (
+        favorites => +{id => $self->user},
+    );
+    for my $tl_name (@TL_TYPES) {
+        my $opt = $tl_opt{$tl_name} || +{};
+        my $statuses = $self->nt->$tl_name($opt);
+        for my $status (@$statuses) {
+            $STATUSES{$tl_name}->{$status->{id}} = $status;
+        }
+    }
+    $last_updated = localtime;
+}
+
+sub update_statuses {
+    _passed or return;
+
+    my ($self) = @_;
+    $self->init_statuses;
+}
+
 sub main_loop {
     my ($self, @args) = @_;
     clear and say "now login as -> " . $self->user and say;
@@ -111,8 +148,8 @@ sub main_loop {
 
 sub done {
     my ($self, $message) = @_;
-    say $message if $message;
-    say;
+
+    $message ? say $message : say;
     my $done = $self->term->readline("done.");
     $self->main_loop;
 }
@@ -167,7 +204,9 @@ sub change_user {
     $self->user($user);
     $self->tweetable($c_user->{tweetable});
     $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships/;
-    $self->done;
+    undef $last_updated;
+    $self->init_statuses;
+    $self->done("user: $user");
 }
 
 sub destroy_status {
@@ -191,7 +230,9 @@ sub direct_messages {
     my ($self, $count) = @_;
     $count ||= $COUNT;
 
-    my $statuses = $self->nt->direct_messages({count => $count});
+    $self->update_statuses;
+    my $statuses = $STATUSES{direct_messages};
+    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
 
@@ -228,7 +269,9 @@ sub friends_timeline {
     my ($self, $count) = @_;
     $count ||= $COUNT;
 
-    my $statuses = $self->nt->friends_timeline({count => $count});
+    $self->update_statuses;
+    my $statuses = $STATUSES{friends_timeline};
+    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
@@ -237,7 +280,9 @@ sub mentions {
     my ($self, $count) = @_;
     $count ||= $COUNT;
 
-    my $statuses = $self->nt->mentions({count => $count});
+    $self->update_statuses;
+    my $statuses = $STATUSES{mentions};
+    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
@@ -462,7 +507,10 @@ sub friends {
 sub retweets_of_me {
     my ($self, $count) = @_;
     $count ||= $COUNT;
-    my $statuses = $self->nt->retweets_of_me({count => $count});
+
+    $self->update_statuses;
+    my $statuses = $STATUSES{retweets_of_me};
+    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
 
@@ -504,7 +552,9 @@ sub favorites {
     my ($self, $screen_id) = @_;
     $screen_id ||= $self->user;
 
-    my $statuses = $self->nt->favorites({id => $screen_id});
+    $self->update_statuses;
+    my $statuses = $STATUSES{favorites};
+    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
     $self->print_status($statuses);
     $self->done;
 }
