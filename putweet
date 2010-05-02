@@ -236,7 +236,7 @@ sub direct_messages {
 
     $self->update_statuses;
     my $statuses = $STATUSES{direct_messages};
-    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
+    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
 
@@ -275,7 +275,7 @@ sub friends_timeline {
 
     $self->update_statuses;
     my $statuses = $STATUSES{friends_timeline};
-    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
+    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
@@ -286,7 +286,7 @@ sub mentions {
 
     $self->update_statuses;
     my $statuses = $STATUSES{mentions};
-    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
+    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
@@ -514,7 +514,7 @@ sub retweets_of_me {
 
     $self->update_statuses;
     my $statuses = $STATUSES{retweets_of_me};
-    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
+    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
 
@@ -558,7 +558,7 @@ sub favorites {
 
     $self->update_statuses;
     my $statuses = $STATUSES{favorites};
-    $statuses = [map {$statuses->{$_}} reverse sort keys %$statuses];
+    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses);
     $self->done;
 }
