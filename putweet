@@ -137,7 +137,7 @@ sub update_statuses {
 
 sub main_loop {
     my ($self, @args) = @_;
-    clear and say "now login as -> " . $self->user and say;
+    clear and say "now login as -> " . $self->user . "   last updated: ". $last_updated->hms and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
         $self->$func(@args);
     }
@@ -330,6 +330,7 @@ sub user_timeline {
 sub print_status {
     my ($self, $statuses, $opt) = @_;
 
+    @$statuses = reverse @$statuses;
     my $i = 0;
     my ($width) = GetTerminalSize;
     my $line = "=" x $width;
@@ -373,7 +374,7 @@ sub ask_reaction {
     " f[number] : follow time line",
     " v[number] : favorite the status",
     " s[number] : show user's timeline",
-    " p[number] : report for spam",
+    " n[number] : report for spam",
     " b[number] : block user",
     " d[number] : delete your status",
     "  [other]  : end",
@@ -423,8 +424,8 @@ sub ask_reaction {
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->user_timeline($screen_name);
     }
-    elsif ($in =~ m/^p\d+$/) {
-        $in =~ s/p//;
+    elsif ($in =~ m/^n\d+$/) {
+        $in =~ s/n//;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->report_spam($screen_name);
     }
