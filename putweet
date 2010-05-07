@@ -137,6 +137,7 @@ sub update_statuses {
 
 sub main_loop {
     my ($self, @args) = @_;
+    $last_updated or do {$last_updated = localtime - 300;};
     clear and say "now login as -> " . $self->user . "   last updated: ". $last_updated->hms and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
         $self->$func(@args);
@@ -209,7 +210,7 @@ sub change_user {
     undef $last_updated;
     $STATUSES{$_} = {} for (@TL_TYPES);
     say 'getting statuses. wait a moment...';
-    $self->init_statuses;
+    #$self->init_statuses;
     $self->done("user: $user");
 }
 
@@ -461,7 +462,7 @@ sub show_user {
     $user_info{id} = $id;
     for my $key (@want) {
         $filterd{$key} ||= '';
-        my $s1 = 54;
+        my $s1 = 55;
         my $s2 = $s1 - 15;
         if ($s1 < (length $filterd{$key})) {
             no warnings;
@@ -554,13 +555,20 @@ sub search {
 }
 
 sub favorites {
-    my ($self, $screen_id) = @_;
-    $screen_id ||= $self->user;
+    my ($self, $screen_name) = @_;
 
-    $self->update_statuses;
-    my $statuses = $STATUSES{favorites};
-    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+    my $statuses;
+    if ($screen_name) {
+        $statuses = $self->nt->favorites({id => $screen_name});
+    }
+    else {
+        $screen_name = $self->user;
+        $self->update_statuses;
+        $statuses = $STATUSES{favorites};
+        $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+    }
     $self->print_status($statuses);
+    $self->ask_reaction($statuses);
     $self->done;
 }
 
@@ -697,7 +705,7 @@ menu:
       -
         - g
         - favorites
-        - screen_id?
+        - screen_name?
         - show your favorites
     -
       -
