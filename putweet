@@ -16,7 +16,7 @@ $YAML::Syck::ImplicitUnicode = 1;
 
 my ($COUNT, $PER) = (5, 300);
 my (%STATUSES, $last_updated);
-my @TL_TYPES =qw/friends_timeline mentions direct_messages favorites retweets_of_me/;
+my @TL_TYPES =qw/friends_timeline mentions retweets_of_me/;#direct_messages favorites
 
 __PACKAGE__->mk_accessors(qw/
     dispatch menu nt term user user_list tweetable
@@ -137,7 +137,7 @@ sub update_statuses {
 
 sub main_loop {
     my ($self, @args) = @_;
-    $last_updated or do {$last_updated = localtime - 300;};
+    $last_updated or do {$last_updated = localtime; $last_updated -= 10 * 60};
     clear and say "now login as -> " . $self->user . "   last updated: ". $last_updated->hms and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
         $self->$func(@args);
