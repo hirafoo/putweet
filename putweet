@@ -384,7 +384,7 @@ sub ask_reaction {
 
     my $in = $self->term->readline('input: ');
     if ($in =~ m/^\d+$/ and $statuses->[$in]) {
-        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
+        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 decode_entities $statuses->[$in]->{text};
         my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
         $status = "\@$statuses->[$in]->{user}{screen_name} $status";
         $self->update($statuses->[$in]->{id}, $status);
