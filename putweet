@@ -263,7 +263,7 @@ sub rel_exists {
 
     my $res1 = $self->nt->friendship_exists($id1, $id2);
     my $res2 = $self->nt->friendship_exists($id2, $id1);
-    my %rel = (0 => 'not ', 1 => '');
+    my %rel = (0 => 'NOT ', 1 => '');
 
     say "$id1 $rel{$res1}following $id2";
     say "$id2 $rel{$res2}following $id1";
@@ -548,7 +548,7 @@ sub search {
     @words or return $self->done('args: word[s]');
 
     my $word = join "", @words;
-    my $statuses = $self->nt->search({q => $word, lang => 'ja'})->{results};
+    my $statuses = $self->nt->search({q => $word, lang => 'all'})->{results};
     $self->print_status($statuses, 1);
     $self->ask_reaction($statuses);
     $self->done;
