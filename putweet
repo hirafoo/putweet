@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Config::Pit qw/pit_get pit_set/;
 use Data::Dumper;
-use Encode qw/encode_utf8 decode_utf8/;
+use Encode qw/find_encoding/;
 use HTML::Entities qw/decode_entities/;
 use Net::Twitter;
 use Term::ReadKey qw/GetTerminalSize/;
@@ -17,12 +17,14 @@ $YAML::Syck::ImplicitUnicode = 1;
 my ($COUNT, $PER) = (5, 300);
 my (%STATUSES, $last_updated);
 my @TL_TYPES =qw/friends_timeline mentions retweets_of_me/;#direct_messages favorites
+my $utf = find_encoding("utf-8");
 
 __PACKAGE__->mk_accessors(qw/
     dispatch menu nt term user user_list tweetable
     _blocking_users _followers _friends _user_info _list_memberships
 /);
 
+sub utf { $utf }
 sub clear { system('clear') + 1 }
 sub say { print @_, "\n" }
 sub p {
@@ -305,13 +307,13 @@ sub update {
     }
 
     my $status = join " ", @args;
-    my $_status = decode_utf8 $status;
+    my $_status = utf->decode($status);
     if (140 < length $_status) {
         say "status cut 140 chars.";
         $status = substr($_status, 0, 140);
-        $status = encode_utf8 $status;
+        $status = utf->encode($status);
     }
-    $post_param->{status} = decode_utf8 $status;
+    $post_param->{status} = utf->decode($status);
     say "status: $status";
 
     $self->nt->update($post_param) if $self->term->readline("ok? (y/n): ") eq 'y';
@@ -341,7 +343,7 @@ sub print_status {
         $source and $source =~ m{<.*?href="(.*?)".*?>(.+)</a>} and $source_url = $1 and $source = $2;
         $source and $source_url and $source .= " $source_url";
         $source and $source = "via $source";
-        $source = encode_utf8 $source if utf8::is_utf8($source);
+        $source = utf->encode($source) if utf8::is_utf8($source);
 
         my $reply_to = $status->{in_reply_to_status_id};
         $reply_to = $reply_to ? "in reply to $status->{in_reply_to_screen_name}" : '';
@@ -355,7 +357,7 @@ sub print_status {
         ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user}),
         $status->{id}, "$source $reply_to";
         say;
-        say decode_entities encode_utf8 $status->{text};
+        say decode_entities utf->encode($status->{text});
 
         $i++;
     }
@@ -384,7 +386,7 @@ sub ask_reaction {
 
     my $in = $self->term->readline('input: ');
     if ($in =~ m/^\d+$/ and $statuses->[$in]) {
-        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 decode_entities $statuses->[$in]->{text};
+        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode(decode_entities $statuses->[$in]->{text});
         my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
         $status = "\@$statuses->[$in]->{user}{screen_name} $status";
         $self->update($statuses->[$in]->{id}, $status);
@@ -396,9 +398,9 @@ sub ask_reaction {
     }
     elsif (my ($k) = $in =~ m/^([rt])\d+$/) {
         $in =~ s/$k//;
-        say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . encode_utf8 $statuses->[$in]->{text};
+        say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode($statuses->[$in]->{text});
         my $status = $self->term->readline('str: ');
-        $status = $status . " RT @" . encode_utf8 "$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}";
+        $status = $status . " RT @" . utf->encode("$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}");
         $k eq 't' ? $self->update($status) : $self->update($statuses->[$in]->{id}, $status);
     }
     elsif ($in =~ m/^f\d+$/) {
@@ -417,7 +419,7 @@ sub ask_reaction {
         $in =~ s/v//;
         my $id = $statuses->[$in]->{id};
         my $user = $statuses->[$in]->{user}{screen_name};
-        my $text = encode_utf8 $statuses->[$in]->{text};
+        my $text = utf->encode($statuses->[$in]->{text});
         $self->nt->create_favorite($id) and return $self->done("favorite:\n$user\:$text");
     }
     elsif ($in =~ m/^s\d+$/) {
@@ -462,24 +464,26 @@ sub show_user {
     $user_info{id} = $id;
     for my $key (@want) {
         $filterd{$key} ||= '';
+        $filterd{$key} =~ s/\r?\n/ /g;
+
         my $s1 = 55;
         my $s2 = $s1 - 15;
         if ($s1 < (length $filterd{$key})) {
             no warnings;
-            my $rest = substr($filterd{$key}, 0, $s2);
-            $filterd{$key} = substr($filterd{$key}, $s2);
-            $rest = encode_utf8 $rest if utf8::is_utf8($rest);
+            my $rest = substr $filterd{$key}, 0, $s2;
+            $filterd{$key} = substr $filterd{$key}, $s2;
+            $rest = utf->encode($rest) if utf8::is_utf8($rest);
             my $key2 = sprintf "%-15s", $key;
             $user_info{body} .= "$key2 $rest\n";
             while ($filterd{$key}) {
-                $rest = substr($filterd{$key}, 0, $s1);
-                $filterd{$key} = substr($filterd{$key}, $s1);
-                $rest = encode_utf8 $rest if utf8::is_utf8($rest);
-                $user_info{body} .= " " x 15 . "$rest\n";
+                $rest = substr $filterd{$key}, 0, $s1;
+                $filterd{$key} = substr $filterd{$key}, $s1;
+                $rest = utf->encode($rest) if utf8::is_utf8($rest);
+                $user_info{body} .= " " x 16 . "$rest\n";
             }
         }
         else {
-            $filterd{$key} = encode_utf8 $filterd{$key} if $filterd{$key} and utf8::is_utf8($filterd{$key});
+            $filterd{$key} = utf->encode($filterd{$key}) if $filterd{$key} and utf8::is_utf8($filterd{$key});
 
             my $key2 = sprintf "%-15s", $key;
             $user_info{body} .= "$key2 $filterd{$key}\n";
@@ -531,7 +535,7 @@ sub list_memberships {
     my $i = 1;
     do {
         for my $list (@{$lists->{lists}}) {
-            push @list_memberships, "$list->{full_name} :". encode_utf8($list->{description} or '') . "\n";
+            push @list_memberships, "$list->{full_name} :". utf->encode($list->{description} or '') . "\n";
         }
         my $lists_next = $self->nt->list_memberships({user => $screen_name, cursor => $lists->{next_cursor}});
         $lists = $lists->{next_cursor} ? $lists_next : undef;
