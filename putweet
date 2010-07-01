@@ -261,7 +261,8 @@ sub destroy_friend {
 
 sub rel_exists {
     my ($self, $id1, $id2) = @_;
-    ($id1 and $id2) or return $self->done('args: screen_name * 2');
+    $id1 or return $self->done('args: screen_name{1,2}');
+    $id2 or do { $id2 = $id1; $id1 = $self->user; };
 
     my $res1 = $self->nt->friendship_exists($id1, $id2);
     my $res2 = $self->nt->friendship_exists($id2, $id1);
@@ -681,7 +682,7 @@ menu:
       -
         - x
         - rel_exists
-        - screen_name * 2
+        - screen_name{1,2}
         - ~
     -
       -
