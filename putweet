@@ -16,7 +16,7 @@ $YAML::Syck::ImplicitUnicode = 1;
 
 my ($COUNT, $PER) = (5, 300);
 my (%STATUSES, $last_updated);
-my @TL_TYPES =qw/friends_timeline mentions retweets_of_me/;#direct_messages favorites
+my @TL_TYPES =qw/home_timeline mentions retweets_of_me/;#direct_messages favorites
 my $utf = find_encoding("utf-8");
 
 __PACKAGE__->mk_accessors(qw/
@@ -273,12 +273,12 @@ sub rel_exists {
     $self->done;
 }
 
-sub friends_timeline {
+sub home_timeline {
     my ($self, $count) = @_;
     $count ||= $COUNT;
 
     $self->update_statuses;
-    my $statuses = $STATUSES{friends_timeline};
+    my $statuses = $STATUSES{home_timeline};
     $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
@@ -612,7 +612,7 @@ menu:
     -
       -
         - f
-        - friends_timeline
+        - home_timeline
         - count?
         - ~
       -
