@@ -122,6 +122,7 @@ sub init_statuses {
         my $opt = $tl_opt{$tl_name} || +{};
         my $statuses = $self->nt->$tl_name($opt);
         for my $status (@$statuses) {
+            $status->{id} or next;# sometimes api return blank data
             $STATUSES{$tl_name}->{$status->{id}} = $status;
         }
         say "got $tl_name";
