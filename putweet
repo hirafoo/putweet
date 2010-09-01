@@ -162,9 +162,16 @@ sub done {
 
 sub block_user {
     my ($self, $screen_name) = @_;
-    return $self->done("args: screen_name.") unless $screen_name;
+    return $self->done("args: id/screen_name.") unless $screen_name;
     $self->nt->create_block($screen_name);
     $self->done("block: $screen_name");
+}
+
+sub unblock_user {
+    my ($self, $screen_name) = @_;
+    return $self->done("args: id/screen_name.") unless $screen_name;
+    $self->nt->destroy_block($screen_name);
+    $self->done("unblock: $screen_name");
 }
 
 sub show_blocking {
@@ -689,6 +696,11 @@ menu:
       -
         - b
         - block_user
+        - user_id/screen_name
+        - ~
+      -
+        - k
+        - unblock_user
         - user_id/screen_name
         - ~
       -
