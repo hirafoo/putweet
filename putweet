@@ -473,6 +473,8 @@ sub show_user {
     $user_info{id} = $id;
     for my $key (@want) {
         $filterd{$key} ||= '';
+        decode_entities $filterd{$key};
+
         $filterd{$key} =~ s/\r?\n/ /g;
 
         my $s1 = 55;
