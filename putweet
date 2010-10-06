@@ -7,21 +7,23 @@ use Config::Pit qw/pit_get pit_set/;
 use Data::Dumper;
 use Encode qw/find_encoding/;
 use HTML::Entities qw/decode_entities/;
+use LWP::UserAgent;
 use Net::Twitter;
 use Term::ReadKey qw/GetTerminalSize/;
 use Term::ReadLine;
 use Time::Piece;
 use YAML::Syck qw/Load/;
+use XML::RSS;
 $YAML::Syck::ImplicitUnicode = 1;
 
 my ($COUNT, $PER) = (5, 300);
 my (%STATUSES, $last_updated);
-my @TL_TYPES =qw/home_timeline mentions retweets_of_me/;#direct_messages favorites
+my @TL_TYPES = qw/home_timeline mentions retweets_of_me/;#direct_messages favorites
 my $utf = find_encoding("utf-8");
 
 __PACKAGE__->mk_accessors(qw/
     dispatch menu nt term user user_list tweetable
-    _blocking_users _followers _friends _user_info _list_memberships
+    _blocking_users _followers _friends _user_info _list_memberships _favs
 /);
 
 sub utf { $utf }
@@ -190,7 +192,7 @@ sub show_blocking {
 
 sub report_spam {
     my ($self, $id) = @_;
-    return $self->done("args: id/scree_name") unless $id;
+    return $self->done("args: id/screen_name") unless $id;
     $self->nt->report_spam($id);
     $self->done("report spam and block: $id");
 }
@@ -592,6 +594,25 @@ sub help {
     say "ソース嫁" and $self->done
 }
 
+sub favs {
+    my ($self, $screen_name) = @_;
+    $screen_name ||= $self->user;
+
+    say $self->_favs and $self->done if $self->_favs;
+
+    my $favs;
+    my $ua = LWP::UserAgent->new;
+    my $rss = XML::RSS->new;
+    my $body = $rss->parse($ua->get("http://ja.favstar.fm/users/$screen_name/rss")->decoded_content);
+    for my $i (reverse @{$body->{items}}) {
+        my $str = utf->encode($i->{title});
+        $str =~ s/star/favs/;
+        $favs .= "$str\n";
+    }
+    $self->_favs($favs);
+    say $self->_favs and $self->done;
+}
+
 sub quit {
     my ($self, @args) = @_;
     say "bye." and exit
@@ -670,7 +691,7 @@ menu:
       -
         - w
         - show_user
-        - user_id/scren_name?
+        - user_id/screen_name?
         - show the user's info
     -
       -
@@ -744,6 +765,11 @@ menu:
         - help
         - none
         - ~
+      -
+        - v
+        - favs
+        - screen_name?
+        - show your favorited statuses
       -
         - q
         - quit
