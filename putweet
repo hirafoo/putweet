@@ -195,8 +195,8 @@ sub report_spam {
     my ($self, $screen_name) = @_;
     $self->confirm($screen_name) or $self->main_loop;
     return $self->done("args: id/screen_name") unless $screen_name;
-    $self->nt->report_spam($id);
-    $self->done("report spam and block: $id");
+    $self->nt->report_spam($screen_name);
+    $self->done("report spam and block: $screen_name");
 }
 
 sub change_user {
