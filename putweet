@@ -607,7 +607,7 @@ sub favs {
     my $body = $rss->parse($ua->get("http://ja.favstar.fm/users/$screen_name/rss")->decoded_content);
     for my $i (reverse @{$body->{items}}) {
         my $str = utf->encode($i->{title});
-        $str =~ s/star/favs/;
+        $str =~ s/stars?/favs/;
         $favs .= "$str\n";
     }
     my $_favs = $self->_favs;
