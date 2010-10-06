@@ -220,7 +220,7 @@ sub change_user {
     $self->nt->access_token_secret($c_user->{access_token_secret});
     $self->user($user);
     $self->tweetable($c_user->{tweetable});
-    $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships/;
+    $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships _favs/;
     undef $last_updated;
     $STATUSES{$_} = {} for (@TL_TYPES);
     say 'getting statuses. wait a moment...';
@@ -665,7 +665,7 @@ menu:
       -
         - s
         - user_timeline
-        - id/screen_name
+        - user_id/screen_name
         - show one user's timeline
       -
         - t
