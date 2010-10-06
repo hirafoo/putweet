@@ -164,15 +164,15 @@ sub done {
 
 sub block_user {
     my ($self, $screen_name) = @_;
+    return $self->done("args: user_id/screen_name.") unless $screen_name;
     $self->confirm($screen_name) or $self->main_loop;
-    return $self->done("args: id/screen_name.") unless $screen_name;
     $self->nt->create_block($screen_name);
     $self->done("block: $screen_name");
 }
 
 sub unblock_user {
     my ($self, $screen_name) = @_;
-    return $self->done("args: id/screen_name.") unless $screen_name;
+    return $self->done("args: user_id/screen_name.") unless $screen_name;
     $self->nt->destroy_block($screen_name);
     $self->done("unblock: $screen_name");
 }
@@ -184,8 +184,8 @@ sub show_blocking {
     my $bloking_users;
     my $users = $self->nt->blocking;
     for my $user (@$users) {
-        my ($id, $name) = ((sprintf "%-9s", $user->{id}), $user->{screen_name});
-        $bloking_users .= "$id $name\n";
+        my ($user_id, $name) = ((sprintf "%-9s", $user->{id}), $user->{screen_name});
+        $bloking_users .= "$user_id $name\n";
     }
     $self->_blocking_users($bloking_users);
     say $self->_blocking_users and return $self->done;
@@ -193,8 +193,8 @@ sub show_blocking {
 
 sub report_spam {
     my ($self, $screen_name) = @_;
-    $self->confirm($screen_name) or $self->main_loop;
     return $self->done("args: id/screen_name") unless $screen_name;
+    $self->confirm($screen_name) or $self->main_loop;
     $self->nt->report_spam($screen_name);
     $self->done("report spam and block: $screen_name");
 }
