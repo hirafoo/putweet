@@ -598,7 +598,8 @@ sub favs {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
-    say $self->_favs and $self->done if $self->_favs;
+    say $self->_favs->{$screen_name} and $self->done
+        if $self->_favs and $self->_favs->{$screen_name};
 
     my $favs;
     my $ua = LWP::UserAgent->new;
@@ -609,8 +610,10 @@ sub favs {
         $str =~ s/star/favs/;
         $favs .= "$str\n";
     }
-    $self->_favs($favs);
-    say $self->_favs and $self->done;
+    my $_favs = $self->_favs;
+    $_favs->{$screen_name} = $favs;
+    $self->_favs($_favs);
+    say $self->_favs->{$screen_name} and $self->done;
 }
 
 sub quit {
