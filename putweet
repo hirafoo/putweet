@@ -164,6 +164,7 @@ sub done {
 
 sub block_user {
     my ($self, $screen_name) = @_;
+    $self->confirm($screen_name) or $self->main_loop;
     return $self->done("args: id/screen_name.") unless $screen_name;
     $self->nt->create_block($screen_name);
     $self->done("block: $screen_name");
@@ -191,8 +192,9 @@ sub show_blocking {
 }
 
 sub report_spam {
-    my ($self, $id) = @_;
-    return $self->done("args: id/screen_name") unless $id;
+    my ($self, $screen_name) = @_;
+    $self->confirm($screen_name) or $self->main_loop;
+    return $self->done("args: id/screen_name") unless $screen_name;
     $self->nt->report_spam($id);
     $self->done("report spam and block: $id");
 }
@@ -455,6 +457,12 @@ sub ask_reaction {
     }
 
     $self->done;
+}
+
+sub confirm {
+    my ($self, @value) = @_;
+    my $method = (split /::/, (caller 1)[3])[-1];
+    $self->term->readline("do ok? (y/n): $method(@value)") eq 'y';
 }
 
 sub show_user {
@@ -737,7 +745,7 @@ menu:
       -
         - n
         - report_spam
-        - id/screen_name
+        - user_id/screen_name
         - ~
     -
       -
