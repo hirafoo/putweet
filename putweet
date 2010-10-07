@@ -574,7 +574,8 @@ sub search {
     my ($self, @words) = @_;
     @words or return $self->done('args: word[s]');
 
-    my $word = join "", @words;
+    my $word = join " ", @words;
+    $word = utf->decode($word);
     my $statuses = $self->nt->search({q => $word, lang => 'all'})->{results};
     $self->print_status($statuses, 1);
     $self->ask_reaction($statuses);
