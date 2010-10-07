@@ -231,6 +231,7 @@ sub change_user {
 sub destroy_status {
     my ($self, $id) = @_;
     $id or return $self->done('args: status id');
+    $self->confirm($id) or $self->main_loop;
 
     $self->nt->destroy_status({id => $id});
     $self->done;
@@ -266,6 +267,7 @@ sub create_friend {
 sub destroy_friend {
     my ($self, $screen_name) = @_;
     $screen_name or return $self->done('args: id/screen_name');
+    $self->confirm($screen_name) or $self->main_loop;
 
     $self->nt->destroy_friend($screen_name);
     $self->done("destroy friendship $screen_name.");
