@@ -395,6 +395,7 @@ sub ask_reaction {
     " n[number] : report for spam",
     " b[number] : block user",
     " d[number] : delete your status",
+    " v[number] : show user's favorited",
     "  [other]  : end",
     "---------------------------";
     say;
@@ -430,8 +431,8 @@ sub ask_reaction {
             say "can not follow. there is no 'in_reply_to_status_id'";
         }
     }
-    elsif ($in =~ m/^v\d+$/) {
-        $in =~ s/v//;
+    elsif ($in =~ m/^e\d+$/) {
+        $in =~ s/e//;
         my $id = $statuses->[$in]->{id};
         my $user = $statuses->[$in]->{user}{screen_name};
         my $text = utf->encode($statuses->[$in]->{text});
@@ -456,6 +457,11 @@ sub ask_reaction {
         $in =~ s/b//;
         my $block_name = $statuses->[$in]->{user}{screen_name};
         $self->block_user($block_name);
+    }
+    elsif ($in =~ m/^v\d+$/) {
+        $in =~ s/v//;
+        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        $self->favs($screen_name);
     }
 
     $self->done;
