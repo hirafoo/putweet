@@ -8,7 +8,7 @@ use Data::Dumper;
 use Encode qw/find_encoding/;
 use HTML::Entities qw/decode_entities/;
 use LWP::UserAgent;
-use Net::Twitter;
+use Net::Twitter::Lite;
 use Term::ReadKey qw/GetTerminalSize/;
 use Term::ReadLine;
 use Time::Piece;
@@ -95,7 +95,7 @@ sub init {
             consumer_secret => $consumer_secret,
             traits => $traits,
         };
-        my $nt = Net::Twitter->new($c);
+        my $nt = Net::Twitter::Lite->new(%$c);
 
         say and say "go to the url, and input PIN you got.\n\n", $nt->get_authorization_url, "\n";
 
@@ -122,9 +122,9 @@ sub init {
         #    username => $username,
         #    password => $password,
         #);
-        #return $self->nt(Net::Twitter->new(%c));
+        #return $self->nt(Net::Twitter::Lite->new(%c));
     }
-    $self->nt(Net::Twitter->new($c));
+    $self->nt(Net::Twitter::Lite->new(%$c));
 
     my $user_list = pit_get('putweet_user_list');
     $self->user_list($user_list);
