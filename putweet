@@ -85,16 +85,43 @@ sub init {
     my $c = pit_get('putweet');
     unless (%$c) {
         clear;
-        my $username = $self->term->readline('username? :');
-        my $password = $self->term->readline('password? :');
-        # I am not as kind as use Term::ReadPassword
-        $self->user($username);
-        my %c = (
-            traits   => [qw/API::Lists API::REST API::Search/],
-            username => $username,
-            password => $password,
-        );
-        return $self->nt(Net::Twitter->new(%c));
+        say "there is no putweet oauth info. input your application info to use as an alternative." and say;
+        my $consumer_key    = $self->term->readline('consumer_key :');
+        my $consumer_secret = $self->term->readline('consumer_secret :');
+        my $traits = [qw/API::Lists API::REST API::Search OAuth/];
+        $c = {
+            consumer_key => $consumer_key,
+            consumer_secret => $consumer_secret,
+            traits => $traits,
+        };
+        my $nt = Net::Twitter->new($c);
+
+        say and say "go to the url, and input PIN you got.\n\n", $nt->get_authorization_url, "\n";
+
+        my $pin = $self->term->readline('pin :');
+        my ($access_token, $access_token_secret, $user_id, $screen_name) = $nt->request_access_token(verifier => $pin);
+        my $putweet_user = {
+            $screen_name => {
+                access_token => $access_token,
+                access_token_secret => $access_token_secret,
+                tweetable => 1,
+            },
+        };
+
+        pit_set("putweet", data => $c);
+        pit_set("putweet_user_list", data => $putweet_user);
+
+        ### OBSOLETE: basic era
+        #my $username = $self->term->readline('username? :');
+        #my $password = $self->term->readline('password? :');
+        ## I am not as kind as use Term::ReadPassword
+        #$self->user($username);
+        #my %c = (
+        #    traits   => [qw/API::Lists API::REST API::Search/],
+        #    username => $username,
+        #    password => $password,
+        #);
+        #return $self->nt(Net::Twitter->new(%c));
     }
     $self->nt(Net::Twitter->new($c));
 
