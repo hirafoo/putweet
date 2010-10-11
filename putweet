@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 package Putweet;
-use base qw/Class::Accessor::Fast/;
+use parent qw/Class::Accessor::Fast/;
 use strict;
 use warnings;
 use Config::Pit qw/pit_get pit_set/;
@@ -14,15 +14,12 @@ use Term::ReadLine;
 use Time::Piece;
 use YAML::Syck qw/Load/;
 use XML::RSS;
-$YAML::Syck::ImplicitUnicode = 1;
 
-my ($COUNT, $PER) = (5, 300);
-my (%STATUSES, $last_updated);
-my @TL_TYPES = qw/home_timeline mentions retweets_of_me/;#direct_messages favorites
+$YAML::Syck::ImplicitUnicode = 1;
 my $utf = find_encoding("utf-8");
 
 __PACKAGE__->mk_accessors(qw/
-    dispatch menu nt term user user_list tweetable
+    dispatch menu nt term user user_list tweetable count per last_updated statuses tl_types
     _blocking_users _followers _friends _user_info _list_memberships _favs
 /);
 
@@ -49,17 +46,7 @@ sub left {
     my $format = '%'. -$length . 's';
     sprintf "$format", $str
 }
-
-sub _passed {
-    if (ref $last_updated) {
-        my $now = localtime;
-        my $diff = $now - $last_updated;
-        ($diff->seconds < $PER) ? 0 : 1;
-    }
-    else {
-        1
-    }
-}
+sub width { (GetTerminalSize)[0] }
 
 sub new { bless {}, shift }
 
@@ -67,13 +54,16 @@ sub init {
     my ($self, @args) = @_;
 
     $self->dispatch({});
-    $STATUSES{$_} = {} for (@TL_TYPES);
+    $self->statuses({});
+    $self->tl_types([qw/home_timeline mentions retweets_of_me/]);#direct_messages favorites
+    $self->statuses->{$_} = {} for $self->tl_types_array;
 
-    my ($width) = GetTerminalSize;
+    $self->count(20);
+    $self->per(60 * 5);
     my $data = do {local $/ = undef; <main::DATA>};
     $data = Load $data;
-    my $menu = left(10, 'type') . left(5, 'cmd') . left(18, 'method') . left(21, 'args') . "explanation\n";
-    $menu .= "=" x $width . "\n";
+    my $menu = left(10, 'type') . left(5, 'cmd') . left(18, 'method') . left(21, 'args') . "explanation";
+    $menu .= "\n%s\n";
 
     my @menu_items = @{$data->{menu}->{item}};
     my $menu_contents = $data->{menu}->{contents};
@@ -114,41 +104,65 @@ sub init {
     $self->change_user;
 }
 
+sub passed {
+    my $self = shift;
+
+    if (ref $self->last_updated) {
+        my $diff = (scalar localtime) - $self->last_updated;
+        ($diff->seconds < $self->per) ? 0 : 1;
+    }
+    else {
+        1
+    }
+}
+
+sub tl_types_array {
+    my ($self) = shift;
+    @{$self->tl_types}
+}
+
+sub say_menu {
+    my ($self) = @_;
+    say sprintf $self->menu, "=" x width;
+}
+
 sub init_statuses {
     my $self = shift;
 
     my %tl_opt = (
         favorites => +{id => $self->user},
     );
-    for my $tl_name (@TL_TYPES) {
+    for my $tl_name ($self->tl_types_array) {
         my $opt = $tl_opt{$tl_name} || +{};
         my $statuses = $self->nt->$tl_name($opt);
         for my $status (@$statuses) {
             $status->{id} or next;# sometimes api return blank data
-            $STATUSES{$tl_name}->{$status->{id}} = $status;
+            $self->statuses->{$tl_name}->{$status->{id}} = $status;
         }
         say "got $tl_name";
     }
     say "update!";
-    $last_updated = localtime;
+    $self->last_updated(scalar localtime);
 }
 
 sub update_statuses {
-    _passed or return;
-
     my ($self) = @_;
+    $self->passed or return;
+
     $self->init_statuses;
 }
 
 sub main_loop {
     my ($self, @args) = @_;
-    $last_updated or do {$last_updated = localtime; $last_updated -= 10 * 60};
-    clear and say "now login as -> " . $self->user . "   last updated: ". $last_updated->hms and say;
+    $self->last_updated or do {
+        $self->last_updated((scalar localtime) - 60 * 10);
+    };
+    clear and say "now login as -> " . $self->user . "   last updated: ". $self->last_updated->hms and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
         $self->$func(@args);
     }
     else {
-        say $self->menu;
+        $self->say_menu;
     }
     my @in = split ' ', $self->term->readline('putweet ');
     $self->main_loop(@in);
@@ -221,8 +235,8 @@ sub change_user {
     $self->user($user);
     $self->tweetable($c_user->{tweetable});
     $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships _favs/;
-    undef $last_updated;
-    $STATUSES{$_} = {} for (@TL_TYPES);
+    $self->last_updated(0);
+    $self->statuses->{$_} = {} for $self->tl_types_array;
     say 'getting statuses. wait a moment...';
     #$self->init_statuses;
     $self->done("user: $user");
@@ -248,10 +262,10 @@ sub show_status {
 
 sub direct_messages {
     my ($self, $count) = @_;
-    $count ||= $COUNT;
+    $count ||= $self->count;
 
     $self->update_statuses;
-    my $statuses = $STATUSES{direct_messages};
+    my $statuses = $self->statuses->{direct_messages};
     $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
@@ -289,10 +303,10 @@ sub rel_exists {
 
 sub home_timeline {
     my ($self, $count) = @_;
-    $count ||= $COUNT;
+    $count ||= $self->count;
 
     $self->update_statuses;
-    my $statuses = $STATUSES{home_timeline};
+    my $statuses = $self->statuses->{home_timeline};
     $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
@@ -300,10 +314,10 @@ sub home_timeline {
 
 sub mentions {
     my ($self, $count) = @_;
-    $count ||= $COUNT;
+    $count ||= $self->count;
 
     $self->update_statuses;
-    my $statuses = $STATUSES{mentions};
+    my $statuses = $self->statuses->{mentions};
     $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
@@ -338,7 +352,7 @@ sub update {
 sub user_timeline {
     my ($self, $screen_name, $count) = @_;
     $screen_name or return $self->done('args: id/screen_name');
-    $count ||= $COUNT;
+    $count ||= $self->count;
 
     my $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count});
     $self->print_status($statuses);
@@ -350,8 +364,7 @@ sub print_status {
 
     @$statuses = reverse @$statuses;
     my $i = 0;
-    my ($width) = GetTerminalSize;
-    my $line = "=" x $width;
+    my $line = "=" x width;
     for my $status (@$statuses) {
         my $source = decode_entities $status->{source} || '';
         my $source_url;
@@ -384,20 +397,20 @@ sub ask_reaction {
 
     say;
     say join "\n", 
-    "---------------------------",
+    "-" x width,
     "  [number] : reply",
     " w[number] : show user's info",
     " r[number] : RT (unofficial)",
     " t[number] : RT (unofficial and without in_reply_to_status_id)",
     " f[number] : follow time line",
-    " v[number] : favorite the status",
+    " e[number] : favorite the status",
     " s[number] : show user's timeline",
     " n[number] : report for spam",
     " b[number] : block user",
     " d[number] : delete your status",
     " v[number] : show user's favorited",
     "  [other]  : end",
-    "---------------------------";
+    "-" x width;
     say;
 
     my $in = $self->term->readline('input: ');
@@ -545,10 +558,10 @@ sub friends {
 
 sub retweets_of_me {
     my ($self, $count) = @_;
-    $count ||= $COUNT;
+    $count ||= $self->count;
 
     $self->update_statuses;
-    my $statuses = $STATUSES{retweets_of_me};
+    my $statuses = $self->statuses->{retweets_of_me};
     $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
@@ -598,7 +611,7 @@ sub favorites {
     else {
         $screen_name = $self->user;
         $self->update_statuses;
-        $statuses = $STATUSES{favorites};
+        $statuses = $self->statuses->{favorites};
         $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     }
     $self->print_status($statuses);
