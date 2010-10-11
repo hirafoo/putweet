@@ -55,6 +55,7 @@ sub init {
 
     $self->dispatch({});
     $self->statuses({});
+    $self->last_updated({});
     $self->tl_types([qw/home_timeline mentions retweets_of_me/]);#direct_messages favorites
     $self->statuses->{$_} = {} for $self->tl_types_array;
 
@@ -132,15 +133,28 @@ sub init {
 }
 
 sub passed {
-    my $self = shift;
+    my ($self, $screen_name) = @_;
 
-    if (ref $self->last_updated) {
-        my $diff = (scalar localtime) - $self->last_updated;
-        ($diff->seconds < $self->per) ? 0 : 1;
+    my $ret;
+    if ($screen_name) {
+        if (ref $self->last_updated->{$screen_name}) {
+            my $diff = (scalar localtime) - $self->last_updated->{$screen_name};
+            $ret = ($diff->seconds < $self->per) ? 0 : 1;
+        }
+        else {
+            $ret = 1;
+        }
     }
     else {
-        1
+        if (ref $self->last_updated->{self}) {
+            my $diff = (scalar localtime) - $self->last_updated->{self};
+            $ret = ($diff->seconds < $self->per) ? 0 : 1;
+        }
+        else {
+            $ret = 1;
+        }
     }
+    $ret;
 }
 
 sub tl_types_array {
@@ -169,7 +183,7 @@ sub init_statuses {
         say "got $tl_name";
     }
     say "update!";
-    $self->last_updated(scalar localtime);
+    $self->last_updated->{self} = scalar localtime;
 }
 
 sub update_statuses {
@@ -181,10 +195,10 @@ sub update_statuses {
 
 sub main_loop {
     my ($self, @args) = @_;
-    $self->last_updated or do {
-        $self->last_updated((scalar localtime) - 60 * 10);
+    $self->last_updated->{self} or do {
+        $self->last_updated->{self} = ((scalar localtime) - 60 * 10);
     };
-    clear and say "now login as -> " . $self->user . "   last updated: ". $self->last_updated->hms and say;
+    clear and say "now login as -> " . $self->user . "   last updated: ". $self->last_updated->{self}->hms and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
         $self->$func(@args);
     }
@@ -262,7 +276,7 @@ sub change_user {
     $self->user($user);
     $self->tweetable($c_user->{tweetable});
     $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships _favs/;
-    $self->last_updated(0);
+    $self->last_updated->{self} = 0;
     $self->statuses->{$_} = {} for $self->tl_types_array;
     say 'getting statuses. wait a moment...';
     #$self->init_statuses;
@@ -381,7 +395,16 @@ sub user_timeline {
     $screen_name or return $self->done('args: id/screen_name');
     $count ||= $self->count;
 
-    my $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count});
+    my $statuses;
+    if ($self->passed($screen_name)) {
+        $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count});
+        for my $status (@$statuses) {
+            $self->statuses->{user_timeline}->{$screen_name}->{$status->{id}} = $status;
+        }
+        $self->last_updated->{$screen_name} = scalar localtime;
+    }
+    $statuses = $self->statuses->{user_timeline}->{$screen_name};
+    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
