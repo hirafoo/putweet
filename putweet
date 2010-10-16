@@ -533,7 +533,8 @@ sub ask_reaction {
 sub confirm {
     my ($self, @value) = @_;
     my $method = (split /::/, (caller 1)[3])[-1];
-    $self->term->readline("do ok? (y/n): $method(@value)") eq 'y';
+    say "$method(@value)";
+    $self->term->readline("do ok? (y/n): ") eq 'y';
 }
 
 sub show_user {
