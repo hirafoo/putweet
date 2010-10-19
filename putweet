@@ -158,7 +158,7 @@ sub passed {
 }
 
 sub tl_types_array {
-    my ($self) = shift;
+    my ($self) = @_;
     @{$self->tl_types}
 }
 
