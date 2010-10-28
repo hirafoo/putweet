@@ -19,7 +19,7 @@ $YAML::Syck::ImplicitUnicode = 1;
 my $utf = find_encoding("utf-8");
 
 __PACKAGE__->mk_accessors(qw/
-    dispatch menu nt term user user_list tweetable count per last_updated statuses tl_types
+    dispatch menu nt term user user_list config count per last_updated statuses tl_types
     _blocking_users _followers _friends _user_info _list_memberships _favs
 /);
 
@@ -53,6 +53,7 @@ sub new { bless {}, shift }
 sub init {
     my ($self, @args) = @_;
 
+    $self->config({});
     $self->dispatch({});
     $self->statuses({});
     $self->last_updated({});
@@ -105,7 +106,10 @@ sub init {
             $screen_name => {
                 access_token => $access_token,
                 access_token_secret => $access_token_secret,
-                tweetable => 1,
+                config => {
+                    tweetable => 1,
+                    show_react_menu => 1,
+                },
             },
         };
 
@@ -274,7 +278,7 @@ sub change_user {
     $self->nt->access_token($c_user->{access_token});
     $self->nt->access_token_secret($c_user->{access_token_secret});
     $self->user($user);
-    $self->tweetable($c_user->{tweetable});
+    $self->config($c_user->{config});
     $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships _favs/;
     $self->last_updated->{self} = 0;
     $self->statuses->{$_} = {} for $self->tl_types_array;
@@ -368,7 +372,7 @@ sub update {
     my ($self, @args) = @_;
     $args[0] or $self->done('args: status');
 
-    unless ($self->tweetable) {
+    unless ($self->config->{tweetable}) {
         say "you are not tweetable." and return $self->done;
     }
     my $post_param;
@@ -445,23 +449,25 @@ sub print_status {
 sub ask_reaction {
     my ($self, $statuses) = @_;
 
-    say;
-    say join "\n", 
-    "-" x width,
-    "  [number] : reply",
-    " w[number] : show user's info",
-    " r[number] : RT (unofficial)",
-    " t[number] : RT (unofficial and without in_reply_to_status_id)",
-    " f[number] : follow time line",
-    " e[number] : favorite the status",
-    " s[number] : show user's timeline",
-    " n[number] : report for spam",
-    " b[number] : block user",
-    " d[number] : delete your status",
-    " v[number] : show user's favorited",
-    "  [other]  : end",
-    "-" x width;
-    say;
+    if ($self->config->{show_react_menu}) {
+        say;
+        say join "\n",
+        "-" x width,
+        "  [number] : reply",
+        " w[number] : show user's info",
+        " r[number] : RT (unofficial)",
+        " t[number] : RT (unofficial and without in_reply_to_status_id)",
+        " f[number] : follow time line",
+        " e[number] : favorite the status",
+        " s[number] : show user's timeline",
+        " n[number] : report for spam",
+        " b[number] : block user",
+        " d[number] : delete your status",
+        " v[number] : show user's favorited",
+        "  [other]  : end",
+        "-" x width;
+        say;
+    }
 
     my $in = $self->term->readline('input: ');
     if ($in =~ m/^\d+$/ and $statuses->[$in]) {
@@ -697,6 +703,30 @@ sub favs {
     say $self->_favs->{$screen_name} and $self->done;
 }
 
+sub change_config {
+    my ($self, $item, $value) = @_;
+
+    if ($item) {
+        if (defined $value) {
+            say "$item -> $value";
+            $self->config->{$item} = $value;
+        }
+        else {
+            delete $self->config->{$item};
+        }
+
+        my $user_list = pit_get('putweet_user_list');
+        $user_list->{$self->user}->{config} = $self->config;
+        pit_set("putweet_user_list", data => $user_list);
+        $self->done('configed.');
+    }
+    else {
+        say "your config...";
+        p $self->config;
+        $self->done;
+    }
+}
+
 sub quit {
     my ($self, @args) = @_;
     say "bye." and exit
@@ -843,6 +873,11 @@ menu:
         - c
         - change_user
         - none
+        - ~
+      -
+        - C
+        - change_config
+        - item/value
         - ~
       -
         - h
