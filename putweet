@@ -551,8 +551,8 @@ sub show_user {
 
     my %res = %{$self->nt->show_user($id)};
     my %filterd;
-    my @want = qw/id name screen_name lang url description location
-                  time_zone statuses_count created_at friends_count followers_count/;
+    my @want = qw/id name screen_name lang url description location time_zone
+                  statuses_count created_at friends_count followers_count listed_count/;
     @filterd{@want} = @res{@want};
     my $t = parse_time($filterd{created_at});
     $filterd{created_at} = join " ", $t->ymd('/'), "(@{[$t->day]})", $t->hms;
