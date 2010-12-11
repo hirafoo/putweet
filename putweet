@@ -388,6 +388,7 @@ sub update {
         $status = utf->encode($status);
     }
     $post_param->{status} = utf->decode($status);
+    say;
     say "status: $status";
 
     $self->nt->update($post_param) if $self->term->readline("ok? (y/n): ") eq 'y';
@@ -464,12 +465,15 @@ sub ask_reaction {
         " b[number] : block user",
         " d[number] : delete your status",
         " v[number] : show user's favorited",
+        " x[number] : show relation between the user",
         "  [other]  : end",
         "-" x width;
-        say;
     }
 
+    say;
     my $in = $self->term->readline('input: ');
+    say;
+
     if ($in =~ m/^\d+$/ and $statuses->[$in]) {
         say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode(decode_entities $statuses->[$in]->{text});
         my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
@@ -531,6 +535,10 @@ sub ask_reaction {
         $in =~ s/v//;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->favs($screen_name);
+    }
+    elsif ($in =~ m/^x\d+$/) {
+        $in =~ s/x//;
+        $self->rel_exists($statuses->[$in]->{user}{screen_name});
     }
 
     $self->done;
