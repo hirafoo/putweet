@@ -487,6 +487,7 @@ sub ask_reaction {
     }
     elsif (my ($k) = $in =~ m/^([rt])\d+$/) {
         $in =~ s/$k//;
+        say $k eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
         say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode($statuses->[$in]->{text});
         my $status = $self->term->readline('str: ');
         $status = $status . " RT @" . utf->encode("$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}");
