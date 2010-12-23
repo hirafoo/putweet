@@ -204,7 +204,9 @@ sub main_loop {
     };
     clear and say "now login as -> " . $self->user . "   last updated: ". $self->last_updated->{self}->hms and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
-        $self->$func(@args);
+        local $@;
+        eval { $self->$func(@args) };
+        say $@ if $@;
     }
     else {
         $self->say_menu;
