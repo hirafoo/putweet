@@ -48,8 +48,6 @@ sub left {
 }
 sub width { (GetTerminalSize)[0] }
 
-sub new { bless {}, shift }
-
 sub init {
     my ($self, @args) = @_;
 
@@ -420,7 +418,7 @@ sub print_status {
     my ($self, $statuses, $opt) = @_;
 
     @$statuses = reverse @$statuses;
-    my $i = 0;
+    my $i = @$statuses;
     my $line = "=" x width;
     for my $status (@$statuses) {
         my $source = decode_entities $status->{source} || '';
@@ -438,13 +436,13 @@ sub print_status {
 
         say $line;
         say join " ",
-        "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
-        ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user}),
-        $status->{id}, "$source $reply_to";
+            "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
+            ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user}),
+            $status->{id}, "$source $reply_to";
         say;
         say decode_entities utf->encode($status->{text});
 
-        $i++;
+        $i--;
     }
     say $line;
 }
@@ -453,23 +451,22 @@ sub ask_reaction {
     my ($self, $statuses) = @_;
 
     if ($self->config->{show_react_menu}) {
-        say;
-        say join "\n",
-        "-" x width,
-        "  [number] : reply",
-        " w[number] : show user's info",
-        " r[number] : RT (unofficial)",
-        " t[number] : RT (unofficial and without in_reply_to_status_id)",
-        " f[number] : follow time line",
-        " e[number] : favorite the status",
-        " s[number] : show user's timeline",
-        " n[number] : report for spam",
-        " b[number] : block user",
-        " d[number] : delete your status",
-        " v[number] : show user's favorited",
-        " x[number] : show relation between the user",
-        "  [other]  : end",
-        "-" x width;
+        say and say join "\n",
+            "-" x width,
+            "  [number] : reply",
+            " w[number] : show user's info",
+            " r[number] : RT (unofficial)",
+            " t[number] : RT (unofficial and without in_reply_to_status_id)",
+            " f[number] : follow time line",
+            " e[number] : favorite the status",
+            " s[number] : show user's timeline",
+            " n[number] : report for spam",
+            " b[number] : block user",
+            " d[number] : delete your status",
+            " v[number] : show user's favorited",
+            " x[number] : show relation between the user",
+            "  [other]  : end",
+            "-" x width;
     }
 
     say;
@@ -477,6 +474,7 @@ sub ask_reaction {
     say;
 
     if ($in =~ m/^\d+$/ and $statuses->[$in]) {
+        $in *= -1;
         say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode(decode_entities $statuses->[$in]->{text});
         my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
         $status = "\@$statuses->[$in]->{user}{screen_name} $status";
@@ -484,11 +482,13 @@ sub ask_reaction {
     }
     elsif ($in =~ m/^w\d+$/) {
         $in =~ s/w//;
+        $in *= -1;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->show_user($screen_name);
     }
     elsif (my ($k) = $in =~ m/^([rt])\d+$/) {
         $in =~ s/$k//;
+        $in *= -1;
         say $k eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
         say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode($statuses->[$in]->{text});
         my $status = $self->term->readline('str: ');
@@ -497,6 +497,7 @@ sub ask_reaction {
     }
     elsif ($in =~ m/^f\d+$/) {
         $in =~ s/f//;
+        $in *= -1;
         my $reply_id = $statuses->[$in]->{in_reply_to_status_id};
         if ($reply_id) {
             my $status = $self->nt->show_status({id => $reply_id});
@@ -509,6 +510,7 @@ sub ask_reaction {
     }
     elsif ($in =~ m/^e\d+$/) {
         $in =~ s/e//;
+        $in *= -1;
         my $id = $statuses->[$in]->{id};
         my $user = $statuses->[$in]->{user}{screen_name};
         my $text = utf->encode($statuses->[$in]->{text});
@@ -516,31 +518,37 @@ sub ask_reaction {
     }
     elsif ($in =~ m/^s\d+$/) {
         $in =~ s/s//;
+        $in *= -1;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->user_timeline($screen_name);
     }
     elsif ($in =~ m/^n\d+$/) {
         $in =~ s/n//;
+        $in *= -1;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->report_spam($screen_name);
     }
     elsif ($in =~ m/^d\d+$/) {
         $in =~ s/d//;
+        $in *= -1;
         my $id = $statuses->[$in]->{id};
         $self->destroy_status($id);
     }
     elsif ($in =~ m/^b\d+$/) {
         $in =~ s/b//;
+        $in *= -1;
         my $block_name = $statuses->[$in]->{user}{screen_name};
         $self->block_user($block_name);
     }
     elsif ($in =~ m/^v\d+$/) {
         $in =~ s/v//;
+        $in *= -1;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
         $self->favs($screen_name);
     }
     elsif ($in =~ m/^x\d+$/) {
         $in =~ s/x//;
+        $in *= -1;
         $self->rel_exists($statuses->[$in]->{user}{screen_name});
     }
 
