@@ -1,8 +1,9 @@
 #!/usr/bin/perl
-package Putweet;
-use parent qw/Class::Accessor::Fast/;
 use strict;
 use warnings;
+
+package Putweet;
+use parent qw/Class::Accessor::Fast/;
 use Config::Pit qw/pit_get pit_set/;
 use Data::Dumper;
 use Encode qw/find_encoding/;
@@ -51,17 +52,34 @@ sub width { (GetTerminalSize)[0] }
 sub init {
     my ($self, @args) = @_;
 
+    my $data = do {local $/ = undef; <main::DATA>};
+    $data = Load $data;
+
+    $self->init_accessor;
+    $self->init_menu($data);
+    $self->init_nt;
+
+    my $user_list = pit_get('putweet_user_list');
+    $self->user_list($user_list);
+
+    $self->change_user;
+    $self;
+}
+sub init_accessor {
+    my ($self, $data) = @_;
     $self->config({});
     $self->dispatch({});
     $self->statuses({});
     $self->last_updated({});
     $self->tl_types([qw/home_timeline mentions retweets_of_me/]);#direct_messages favorites
     $self->statuses->{$_} = {} for $self->tl_types_array;
-
     $self->count(20);
     $self->per(60 * 5);
-    my $data = do {local $/ = undef; <main::DATA>};
-    $data = Load $data;
+    $self->term(Term::ReadLine->new(''));
+}
+sub init_menu {
+    my ($self, $data) = @_;
+
     my $menu = left(10, 'type') . left(5, 'cmd') . left(18, 'method') . left(21, 'args') . "explanation";
     $menu .= "\n%s\n";
 
@@ -79,9 +97,9 @@ sub init {
         }
     }
     $self->menu($menu);
-
-    $self->term(Term::ReadLine->new(''));
-
+}
+sub init_nt {
+    my ($self, $data) = @_;
     my $c = pit_get('putweet');
     unless (%$c) {
         clear;
@@ -127,11 +145,6 @@ sub init {
         #return $self->nt(Net::Twitter::Lite->new(%c));
     }
     $self->nt(Net::Twitter::Lite->new(%$c));
-
-    my $user_list = pit_get('putweet_user_list');
-    $self->user_list($user_list);
-
-    $self->change_user;
 }
 
 sub passed {
@@ -193,6 +206,11 @@ sub update_statuses {
     $self->passed or return;
 
     $self->init_statuses;
+}
+
+sub run {
+    my ($self, ) = @_;
+    $self->main_loop;
 }
 
 sub main_loop {
@@ -752,12 +770,7 @@ sub quit {
 }
 
 package main;
-use strict;
-use warnings;
-
-my $putweet = Putweet->new;
-$putweet->init;
-$putweet->main_loop while 1;
+Putweet->new->init->run;
 
 __DATA__
 menu:
