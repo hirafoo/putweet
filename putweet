@@ -3,7 +3,13 @@ use strict;
 use warnings;
 
 package Putweet;
-use parent qw/Class::Accessor::Fast/;
+use Class::Accessor::Lite (
+    new => 1,
+    rw  => [qw/
+        dispatch menu nt term user user_list config count per last_updated statuses tl_types
+        _blocking_users _followers _friends _user_info _list_memberships _favs
+    /],
+);
 use Config::Pit qw/pit_get pit_set/;
 use Data::Dumper;
 use Encode qw/find_encoding/;
@@ -18,11 +24,6 @@ use XML::RSS;
 
 $YAML::Syck::ImplicitUnicode = 1;
 my $utf = find_encoding("utf-8");
-
-__PACKAGE__->mk_accessors(qw/
-    dispatch menu nt term user user_list config count per last_updated statuses tl_types
-    _blocking_users _followers _friends _user_info _list_memberships _favs
-/);
 
 sub utf { $utf }
 sub clear { system('clear') + 1 }
@@ -589,7 +590,7 @@ sub show_user {
     my %res = %{$self->nt->show_user($id)};
     my %filterd;
     my @want = qw/id name screen_name lang url description location time_zone
-                  statuses_count created_at friends_count followers_count listed_count/;
+                  statuses_count created_at friends_count followers_count protected listed_count/;
     @filterd{@want} = @res{@want};
     my $t = parse_time($filterd{created_at});
     $filterd{created_at} = join " ", $t->ymd('/'), "(@{[$t->day]})", $t->hms;
@@ -601,6 +602,7 @@ sub show_user {
         decode_entities $filterd{$key};
 
         $filterd{$key} =~ s/\r?\n/ /g;
+        $filterd{protected} ||= 0;
 
         my $s1 = 55;
         my $s2 = $s1 - 15;
