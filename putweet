@@ -538,7 +538,7 @@ sub ask_reaction {
     elsif ($in =~ m/^s\d+$/) {
         $in =~ s/s//;
         $in *= -1;
-        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
         $self->user_timeline($screen_name);
     }
     elsif ($in =~ m/^n\d+$/) {
@@ -563,7 +563,7 @@ sub ask_reaction {
         $in =~ s/v//;
         $in *= -1;
         my $screen_name = $statuses->[$in]->{user}{screen_name};
-        $self->favs($screen_name);
+        $self->favorited($screen_name);
     }
     elsif ($in =~ m/^x\d+$/) {
         $in =~ s/x//;
@@ -720,7 +720,7 @@ sub help {
     say "ソース嫁" and $self->done
 }
 
-sub favs {
+sub favorited {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
@@ -920,7 +920,7 @@ menu:
         - ~
       -
         - v
-        - favs
+        - favorited
         - screen_name?
         - show your favorited statuses
       -
