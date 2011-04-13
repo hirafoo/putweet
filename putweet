@@ -11,7 +11,7 @@ use Class::Accessor::Lite (
     /],
 );
 use Config::Pit qw/pit_get pit_set/;
-use Data::Dumper;
+use Data::Dumper qw/Dumper/;
 use Encode qw/find_encoding/;
 use HTML::Entities qw/decode_entities/;
 use LWP::UserAgent;
