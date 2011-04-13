@@ -502,7 +502,7 @@ sub ask_reaction {
     elsif ($in =~ m/^w\d+$/) {
         $in =~ s/w//;
         $in *= -1;
-        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
         $self->show_user($screen_name);
     }
     elsif (my ($k) = $in =~ m/^([rt])\d+$/) {
@@ -531,9 +531,9 @@ sub ask_reaction {
         $in =~ s/e//;
         $in *= -1;
         my $id = $statuses->[$in]->{id};
-        my $user = $statuses->[$in]->{user}{screen_name};
+        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
         my $text = utf->encode($statuses->[$in]->{text});
-        $self->nt->create_favorite($id) and return $self->done("favorite:\n$user\:$text");
+        $self->nt->create_favorite($id) and return $self->done("favorite:\n$screen_name\:$text");
     }
     elsif ($in =~ m/^s\d+$/) {
         $in =~ s/s//;
@@ -544,7 +544,7 @@ sub ask_reaction {
     elsif ($in =~ m/^n\d+$/) {
         $in =~ s/n//;
         $in *= -1;
-        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
         $self->report_spam($screen_name);
     }
     elsif ($in =~ m/^d\d+$/) {
@@ -556,13 +556,13 @@ sub ask_reaction {
     elsif ($in =~ m/^b\d+$/) {
         $in =~ s/b//;
         $in *= -1;
-        my $block_name = $statuses->[$in]->{user}{screen_name};
-        $self->block_user($block_name);
+        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
+        $self->block_user($screen_name);
     }
     elsif ($in =~ m/^v\d+$/) {
         $in =~ s/v//;
         $in *= -1;
-        my $screen_name = $statuses->[$in]->{user}{screen_name};
+        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
         $self->favorited($screen_name);
     }
     elsif ($in =~ m/^x\d+$/) {
