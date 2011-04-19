@@ -24,6 +24,7 @@ use XML::RSS;
 
 $YAML::Syck::ImplicitUnicode = 1;
 my $utf = find_encoding("utf-8");
+my $tp = localtime;
 
 sub utf { $utf }
 sub clear { system('clear') + 1 }
@@ -31,17 +32,14 @@ sub say { print @_, "\n" }
 sub p {
     local $Data::Dumper::Indent = 1;
     local $Data::Dumper::Terse  = 1;
-    warn Dumper shift
-}
-sub pp {
     warn Dumper @_;
     my @c = caller;
     print STDERR "  at $c[1]:$c[2]\n\n"
 }
 sub parse_time {
     my ($created_at, $opt) = @_;
-    $opt ? (Time::Piece->strptime($created_at, '%a, %d %b %Y %H:%M:%S +0000') + 32400)
-         : (Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y')  + 32400);
+    $opt ? ($tp->strptime($created_at, '%a, %d %b %Y %H:%M:%S +0000'))
+         : ($tp->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y'));
 }
 sub left {
     my ($length, $str) = @_;
