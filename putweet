@@ -24,7 +24,6 @@ use XML::RSS;
 
 $YAML::Syck::ImplicitUnicode = 1;
 my $utf = find_encoding("utf-8");
-my $tp = localtime;
 
 sub utf { $utf }
 sub clear { system('clear') + 1 }
@@ -38,8 +37,10 @@ sub p {
 }
 sub parse_time {
     my ($created_at, $opt) = @_;
-    $opt ? ($tp->strptime($created_at, '%a, %d %b %Y %H:%M:%S +0000'))
-         : ($tp->strptime($created_at, '%a %b %d %H:%M:%S +0000 %Y'));
+    my $utc = $opt ? (Time::Piece->strptime($created_at, '%a, %d %b %Y %H:%M:%S %z'))
+                   : (Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S %z %Y'));
+    my $jst = localtime($utc->epoch);
+    $jst;
 }
 sub left {
     my ($length, $str) = @_;
