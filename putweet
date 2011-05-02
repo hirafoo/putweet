@@ -420,7 +420,7 @@ sub user_timeline {
 
     my $statuses;
     if ($self->passed($screen_name)) {
-        $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count});
+        $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count, include_rts => 1});
         for my $status (@$statuses) {
             $self->statuses->{user_timeline}->{$screen_name}->{$status->{id}} = $status;
         }
