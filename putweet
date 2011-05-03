@@ -329,7 +329,7 @@ sub direct_messages {
 
     $self->update_statuses;
     my $statuses = $self->statuses->{direct_messages};
-    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+    $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
 
@@ -370,7 +370,7 @@ sub home_timeline {
 
     $self->update_statuses;
     my $statuses = $self->statuses->{home_timeline};
-    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+    $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
@@ -381,7 +381,7 @@ sub mentions {
 
     $self->update_statuses;
     my $statuses = $self->statuses->{mentions};
-    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+    $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
@@ -427,7 +427,7 @@ sub user_timeline {
         $self->last_updated->{$screen_name} = scalar localtime;
     }
     $statuses = $self->statuses->{user_timeline}->{$screen_name};
-    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+    $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
 }
@@ -657,7 +657,7 @@ sub retweets_of_me {
 
     $self->update_statuses;
     my $statuses = $self->statuses->{retweets_of_me};
-    $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+    $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses) and $self->done;
 }
 
@@ -707,7 +707,7 @@ sub favorites {
         $screen_name = $self->user;
         $self->update_statuses;
         $statuses = $self->statuses->{favorites};
-        $statuses = [map {$statuses->{$_}} reverse sort {$a <=> $b} keys %$statuses];
+        $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     }
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
