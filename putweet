@@ -125,6 +125,7 @@ sub init_nt {
                 config => {
                     tweetable => 1,
                     show_react_menu => 1,
+                    show_client_source => 0,
                 },
             },
         };
@@ -442,7 +443,7 @@ sub print_status {
         my $source = decode_entities $status->{source} || '';
         my $source_url;
         $source and $source =~ m{<.*?href="(.*?)".*?>(.+)</a>} and $source_url = $1 and $source = $2;
-        $source and $source_url and $source .= " $source_url";
+        $source and $source_url and $self->config->{show_client_source} and $source .= " $source_url";
         $source and $source = "via $source";
         $source = utf->encode($source) if utf8::is_utf8($source);
 
