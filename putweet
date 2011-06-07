@@ -298,7 +298,8 @@ sub change_user {
     $self->nt->access_token_secret($c_user->{access_token_secret});
     $self->user($user);
     $self->config($c_user->{config});
-    $self->$_(undef) for qw/_blocking_users _followers _friends _user_info _list_memberships _favs/;
+    $self->$_(undef) for qw/_blocking_users _user_info _list_memberships _favs/;
+    $self->$_(+{}) for qw/_followers _friends/;
     $self->last_updated->{self} = 0;
     $self->statuses->{$_} = {} for $self->tl_types_array;
     say 'getting statuses. wait a moment...';
@@ -633,23 +634,25 @@ sub show_user {
 }
 
 sub followers {
-    my ($self, @args) = @_;
+    my ($self, $screen_name) = @_;
+    $screen_name ||= $self->user;
 
-    say $self->_followers and return $self->done if $self->_followers;
+    say $self->_followers->{$screen_name} and return $self->done if $self->_followers->{$screen_name};
     my $followers;
-    $followers .= "$_->{screen_name} " for @{$self->nt->followers};
-    $self->_followers($followers);
-    say $self->_followers and return $self->done;
+    $followers .= "$_->{screen_name} " for @{$self->nt->followers({screen_name => $screen_name})};
+    $self->_followers->{$screen_name} = ($followers);
+    say $self->_followers->{$screen_name} and return $self->done;
 }
 
 sub friends {
-    my ($self, @args) = @_;
+    my ($self, $screen_name) = @_;
+    $screen_name ||= $self->user;
 
-    say $self->_friends and return $self->done if $self->_friends;
+    say $self->_friends->{$screen_name} and return $self->done if $self->_friends->{$screen_name};
     my $friends;
-    $friends .= "$_->{screen_name} " for @{$self->nt->friends};
-    $self->_friends($friends);
-    say $self->_friends and return $self->done;
+    $friends .= "$_->{screen_name} " for @{$self->nt->friends({screen_name => $screen_name})};
+    $self->_friends->{$screen_name} = ($friends);
+    say $self->_friends->{$screen_name} and return $self->done;
 }
 
 sub retweets_of_me {
@@ -829,12 +832,12 @@ menu:
       -
         - i
         - friends
-        - none
+        - screen_name?
         - show your friends
       -
         - o
         - followers
-        - none
+        - screen_name?
         - show your followers
       -
         - w
