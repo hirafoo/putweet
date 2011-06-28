@@ -689,11 +689,14 @@ sub list_memberships {
     my $i = 1;
     do {
         for my $list (@{$lists->{lists}}) {
-            push @list_memberships, "$list->{full_name} :". utf->encode($list->{description} or '') . "\n";
+            my $str = $list->{description} or '';
+            $str = utf->encode($str) if utf8::is_utf8($str);
+            $list->{full_name} = utf->encode($list->{full_name}) if utf8::is_utf8($list->{full_name});
+            push @list_memberships, "$list->{full_name} :$str\n";
         }
         my $lists_next = $self->nt->list_memberships({user => $screen_name, cursor => $lists->{next_cursor}});
         $lists = $lists->{next_cursor} ? $lists_next : undef;
-    } while ($lists);
+    } while $lists;
 
     $_list_memberships .= "list number: " . @list_memberships . "\n\n";
     $_list_memberships .= $_ for @list_memberships;
