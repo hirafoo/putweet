@@ -752,7 +752,7 @@ sub favorited {
     my $rss = XML::RSS->new;
     my $body = $rss->parse($ua->get("http://ja.favstar.fm/users/$screen_name/rss")->decoded_content);
     for my $i (reverse @{$body->{items}}) {
-        my $str = utf->encode($i->{title});
+        my $str = decode_entities(utf->encode($i->{title}));
         $str =~ s/stars?/favs/;
         $favs .= "$str\n";
     }
