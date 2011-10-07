@@ -454,8 +454,7 @@ sub print_status {
         $source and $source = "via $source";
         $source = utf->encode($source) if utf8::is_utf8($source);
 
-        my $reply_to = $status->{in_reply_to_status_id};
-        $reply_to = $reply_to ? "in reply to $status->{in_reply_to_screen_name}" : '';
+        my $reply_to = $status->{in_reply_to_status_id} ? "in reply to $status->{in_reply_to_screen_name}" : '';
 
         my $t = parse_time($status->{created_at}, $opt);
         my $num = sprintf '%2d', $i;
@@ -465,12 +464,16 @@ sub print_status {
             $_screen_name .= " (RT:$org_status->{user}{screen_name})";
             $status->{text} =~ s/^RT @.+?//;
         }
+        my $retweet_count = "";
+        if ($retweet_count = $status->{retweet_count}) {
+            $retweet_count = "($retweet_count Retweeted)";
+        }
 
         say $line;
-        say join " ",
+        say join " ", grep {$_}
             "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
             $_screen_name,
-            $status->{id}, "$source $reply_to";
+            $status->{id}, $source, $reply_to, $retweet_count;
         say;
         say decode_entities utf->encode($status->{text});
 
