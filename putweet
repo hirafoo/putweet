@@ -490,6 +490,7 @@ sub ask_reaction {
             "-" x width,
             "  [number] : reply",
             " w[number] : show user's info",
+            " R[number] : RT (official)",
             " r[number] : RT (unofficial)",
             " t[number] : RT (unofficial and without in_reply_to_status_id)",
             " f[number] : follow time line",
@@ -520,6 +521,12 @@ sub ask_reaction {
         $in *= -1;
         my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
         $self->show_user($screen_name);
+    }
+    elsif ($in =~ m/^R\d+$/) {
+        $in =~ s/R//;
+        $in *= -1;
+        my $id = $statuses->[$in]->{id};
+        $self->retweet($id);
     }
     elsif (my ($k) = $in =~ m/^([rt])\d+$/) {
         $in =~ s/$k//;
@@ -646,6 +653,16 @@ sub show_user {
     }
     say $user_info{body};
     $self->_user_info(\%user_info) if $id eq $self->user;
+    $self->done;
+}
+
+sub retweet {
+    my ($self, $id) = @_;
+    $id or return $self->done('args: status id');
+    my $status = $self->nt->show_status({id => $id});
+    $self->print_status([$status]);
+    $self->confirm("do official retweet ?") or return $self->done;
+    $self->nt->retweet($id);
     $self->done;
 }
 
