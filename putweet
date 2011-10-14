@@ -311,7 +311,11 @@ sub change_user {
 sub destroy_status {
     my ($self, $id) = @_;
     $id or return $self->done('args: status id');
-    $self->confirm($id) or $self->main_loop;
+
+    my $status = $self->nt->show_status({id => $id});
+    $status->{user}{screen_name} eq $self->user or return $self->done("the status is not yours");
+
+    $self->confirm(utf->encode($status->{text})) or $self->main_loop;
 
     $self->nt->destroy_status({id => $id});
     $self->done;
