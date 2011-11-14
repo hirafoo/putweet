@@ -415,6 +415,8 @@ sub update {
     $post_param->{status} = utf->decode($status);
     say;
     say "status: $status";
+    say "length: ". length utf->decode($status);
+    say;
 
     $self->nt->update($post_param) if $self->term->readline("ok? (y/n): ") eq 'y';
     $self->done;
