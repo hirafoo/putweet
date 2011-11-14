@@ -768,8 +768,8 @@ sub favorited {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
-    say $self->_favs->{$screen_name} and $self->done
-        if $self->_favs and $self->_favs->{$screen_name};
+    #say $self->_favs->{$screen_name} and $self->done
+    #    if $self->_favs and $self->_favs->{$screen_name};
 
     my $favs;
     my $ua = LWP::UserAgent->new;
