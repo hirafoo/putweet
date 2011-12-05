@@ -14,6 +14,8 @@ requires $_ for qw/
     Net::Twitter::Lite
     Term::ReadKey
     Term::ReadLine
+    Term::ReadLine::Gnu
+    Term::ReadLine::Perl
     Time::Piece
     YAML::Syck
     XML::RSS
