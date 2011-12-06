@@ -10,6 +10,7 @@ requires $_ for qw/
     Data::Dumper
     Encode
     HTML::Entities
+    LWP::Protocol::https
     LWP::UserAgent
     Net::Twitter::Lite
     Term::ReadKey
