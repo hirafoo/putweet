@@ -507,6 +507,7 @@ sub ask_reaction {
             " d[number] : delete your status",
             " v[number] : show user's favorited",
             " x[number] : show relation between the user",
+            " u[number] : show permalink the tweet",
             "  [other]  : end",
             "-" x width;
     }
@@ -598,6 +599,12 @@ sub ask_reaction {
         $in =~ s/x//;
         $in *= -1;
         $self->rel_exists($statuses->[$in]->{user}{screen_name});
+    }
+    elsif ($in =~ m/^u\d+$/) {
+        $in =~ s/u//;
+        $in *= -1;
+        my $tweet = $statuses->[$in];
+        say sprintf "http://twitter.com/%s/status/%s", $tweet->{user}{screen_name}, $tweet->{id};
     }
 
     $self->done;
