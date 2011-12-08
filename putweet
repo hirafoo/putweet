@@ -499,6 +499,7 @@ sub ask_reaction {
             " R[number] : RT (official)",
             " r[number] : RT (unofficial)",
             " t[number] : RT (unofficial and without in_reply_to_status_id)",
+            " T[number] : show official RTed users",
             " f[number] : follow time line",
             " e[number] : favorite the status",
             " s[number] : show user's timeline",
@@ -543,6 +544,15 @@ sub ask_reaction {
         my $status = $self->term->readline('str: ');
         $status = $status . " RT @" . utf->encode("$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}");
         $k eq 't' ? $self->update($status) : $self->update($statuses->[$in]->{id}, $status);
+    }
+    elsif ($in =~ m/^T\d+$/) {
+        $in =~ s/T//;
+        $in *= -1;
+        my $id = $statuses->[$in]->{id};
+        my $retweeters = $self->nt->retweeted_by($id);
+        for my $i (@$retweeters) {
+            say $i->{screen_name};
+        }
     }
     elsif ($in =~ m/^f\d+$/) {
         $in =~ s/f//;
