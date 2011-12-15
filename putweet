@@ -460,7 +460,7 @@ sub print_status {
         $source and $source = "via $source";
         $source = utf->encode($source) if utf8::is_utf8($source);
 
-        my $reply_to = $status->{in_reply_to_screen_name} ? "in reply to $status->{in_reply_to_screen_name}" : '';
+        my $reply_to = $status->{in_reply_to_status_id} ? "in reply to $status->{in_reply_to_screen_name}" : '';
 
         my $t = parse_time($status->{created_at}, $opt);
         my $num = sprintf '%2d', $i;
