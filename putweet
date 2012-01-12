@@ -527,8 +527,9 @@ sub ask_reaction {
     my $in = $self->term->readline('input: ');
     say;
 
-    if ($in =~ m/^\d+$/ and $statuses->[$in]) {
-        $in *= -1;
+    $in *= -1 if $in =~ m/^\d+$/;
+
+    if ($statuses->[$in]) {
         say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode(decode_entities $statuses->[$in]->{text});
         my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
         $status = "\@$statuses->[$in]->{user}{screen_name} $status";
