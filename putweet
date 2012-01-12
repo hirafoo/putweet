@@ -49,6 +49,15 @@ sub left {
     sprintf "$format", $str
 }
 sub width { (GetTerminalSize)[0] }
+my %DAY_MAP = (
+    Mon => "月",
+    Tue => "火",
+    Wed => "水",
+    Thu => "木",
+    Fri => "金",
+    Sat => "土",
+    Sun => "日",
+);
 
 sub init {
     my ($self, @args) = @_;
@@ -478,7 +487,7 @@ sub print_status {
 
         say $line;
         say join " ", grep {$_}
-            "[$num]", $t->ymd('/'), "(@{[$t->day]})", $t->hms,
+            "[$num]", $t->ymd('/'), "($DAY_MAP{$t->day})", $t->hms,
             $_screen_name,
             $status->{id}, $source, $reply_to, $retweet_count;
         say;
