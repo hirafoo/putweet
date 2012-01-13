@@ -527,105 +527,84 @@ sub ask_reaction {
     my $in = $self->term->readline('input: ');
     say;
 
-    $in *= -1 if $in =~ m/^\d+$/;
+    $in =~ /^([a-zA-Z])?(\d+)?$/;
+    my ($c, $n) = ($1, $2);
 
-    if ($statuses->[$in]) {
-        say "reply to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode(decode_entities $statuses->[$in]->{text});
-        my $status = $self->term->readline('@' . $statuses->[$in]->{user}{screen_name} . ' ');
-        $status = "\@$statuses->[$in]->{user}{screen_name} $status";
-        $self->update($statuses->[$in]->{id}, $status);
+    $c ||= "";
+    $n and $n =~ /^\d+$/ and $statuses->[$n * -1] or return $self->done("invalid input.");
+    $n *= -1;
+    my $status = $statuses->[$n];
+
+    if ($c eq "") {
+        say "reply to: \@$status->{user}{screen_name}: " . utf->encode(decode_entities $status->{text});
+        my $text = $self->term->readline('@' . $status->{user}{screen_name} . ' ');
+        $text = "\@$status->{user}{screen_name} $text";
+        $self->update($status->{id}, $text);
     }
-    elsif ($in =~ m/^w\d+$/) {
-        $in =~ s/w//;
-        $in *= -1;
-        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
+    elsif ($c eq "w") {
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
         $self->show_user($screen_name);
     }
-    elsif ($in =~ m/^R\d+$/) {
-        $in =~ s/R//;
-        $in *= -1;
-        my $id = $statuses->[$in]->{id};
+    elsif ($c eq "R") {
+        my $id = $status->{id};
         $self->retweet($id);
     }
-    elsif (my ($k) = $in =~ m/^([rt])\d+$/) {
-        $in =~ s/$k//;
-        $in *= -1;
-        say $k eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
-        say "RT to: \@$statuses->[$in]->{user}{screen_name}: " . utf->encode($statuses->[$in]->{text});
-        my $status = $self->term->readline('str: ');
-        $status = $status . " RT @" . utf->encode("$statuses->[$in]->{user}{screen_name}: $statuses->[$in]->{text}");
-        $k eq 't' ? $self->update($status) : $self->update($statuses->[$in]->{id}, $status);
+    elsif ($c eq "r" or $c eq "t") {
+        say $c eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
+        say "RT to: \@$status->{user}{screen_name}: " . utf->encode($status->{text});
+        my $text = $self->term->readline('str: ');
+        $text = $text . " RT @" . utf->encode("$status->{user}{screen_name}: $status->{text}");
+        $c eq 't' ? $self->update($text) : $self->update($status->{id}, $text);
     }
-    elsif ($in =~ m/^T\d+$/) {
-        $in =~ s/T//;
-        $in *= -1;
-        my $id = $statuses->[$in]->{id};
+    elsif ($c eq "T") {
+        my $id = $status->{id};
         my $retweeters = $self->nt->retweeted_by($id);
         for my $i (@$retweeters) {
             say $i->{screen_name};
         }
     }
-    elsif ($in =~ m/^f\d+$/) {
-        $in =~ s/f//;
-        $in *= -1;
-        my $reply_id = $statuses->[$in]->{in_reply_to_status_id};
+    elsif ($c eq "f") {
+        my $reply_id = $status->{in_reply_to_status_id};
         if ($reply_id) {
-            my $status = $self->nt->show_status({id => $reply_id});
-            $self->print_status([$status]);
-            return $self->ask_reaction([$status]);
+            my $target_status = $self->nt->show_status({id => $reply_id});
+            $self->print_status([$target_status]);
+            return $self->ask_reaction([$target_status]);
         }
         else {
             say "can not follow. there is no 'in_reply_to_status_id'";
         }
     }
-    elsif ($in =~ m/^e\d+$/) {
-        $in =~ s/e//;
-        $in *= -1;
-        my $id = $statuses->[$in]->{id};
-        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
-        my $text = utf->encode($statuses->[$in]->{text});
+    elsif ($c eq "e") {
+        my $id = $status->{id};
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
+        my $text = utf->encode($status->{text});
         $self->nt->create_favorite($id) and return $self->done("favorite:\n$screen_name\:$text");
     }
-    elsif ($in =~ m/^s\d+$/) {
-        $in =~ s/s//;
-        $in *= -1;
-        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
+    elsif ($c eq "s") {
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
         $self->user_timeline($screen_name);
     }
-    elsif ($in =~ m/^n\d+$/) {
-        $in =~ s/n//;
-        $in *= -1;
-        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
+    elsif ($c eq "n") {
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
         $self->report_spam($screen_name);
     }
-    elsif ($in =~ m/^d\d+$/) {
-        $in =~ s/d//;
-        $in *= -1;
-        my $id = $statuses->[$in]->{id};
+    elsif ($c eq "d") {
+        my $id = $status->{id};
         $self->destroy_status($id);
     }
-    elsif ($in =~ m/^b\d+$/) {
-        $in =~ s/b//;
-        $in *= -1;
-        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
+    elsif ($c eq "b") {
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
         $self->block_user($screen_name);
     }
-    elsif ($in =~ m/^v\d+$/) {
-        $in =~ s/v//;
-        $in *= -1;
-        my $screen_name = $statuses->[$in]->{from_user} || $statuses->[$in]->{user}{screen_name};
+    elsif ($c eq "v") {
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
         $self->favorited($screen_name);
     }
-    elsif ($in =~ m/^x\d+$/) {
-        $in =~ s/x//;
-        $in *= -1;
-        $self->rel_exists($statuses->[$in]->{user}{screen_name});
+    elsif ($c eq "x") {
+        $self->rel_exists($status->{user}{screen_name});
     }
-    elsif ($in =~ m/^u\d+$/) {
-        $in =~ s/u//;
-        $in *= -1;
-        my $tweet = $statuses->[$in];
-        say sprintf "http://twitter.com/%s/status/%s", $tweet->{user}{screen_name}, $tweet->{id};
+    elsif ($c eq "u") {
+        say sprintf "http://twitter.com/%s/status/%s", $status->{user}{screen_name}, $status->{id};
     }
 
     $self->done;
