@@ -529,13 +529,16 @@ sub ask_reaction {
 
     $in =~ /^([a-zA-Z])?(\d+)?$/;
     my ($c, $n) = ($1, $2);
-
     $c ||= "";
-    $n and $n =~ /^\d+$/ and $statuses->[$n * -1] or return $self->done("invalid input.");
-    $n *= -1;
-    my $status = $statuses->[$n];
+    $n ||= "";
+    my $status = "";
+    if ($n) {
+        $n =~ /^\d+$/ and $statuses->[$n * -1] or return $self->done("invalid input.");
+        $n *= -1;
+        $status = $statuses->[$n];
+    }
 
-    if ($c eq "") {
+    if ($c eq "" and $n) {
         say "reply to: \@$status->{user}{screen_name}: " . utf->encode(decode_entities $status->{text});
         my $text = $self->term->readline('@' . $status->{user}{screen_name} . ' ');
         $text = "\@$status->{user}{screen_name} $text";
