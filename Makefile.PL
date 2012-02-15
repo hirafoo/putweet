@@ -9,9 +9,8 @@ requires $_ for qw/
     Clone
     Data::Dumper
     Encode
+    Furl
     HTML::Entities
-    LWP::Protocol::https
-    LWP::UserAgent
     Net::Twitter::Lite
     Term::ReadKey
     Term::ReadLine
@@ -19,7 +18,7 @@ requires $_ for qw/
     Term::ReadLine::Perl
     Time::Piece
     YAML::Syck
-    XML::RSS
+    XML::Simple
 /;
 
 WriteAll;
