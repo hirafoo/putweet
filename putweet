@@ -609,7 +609,7 @@ sub ask_reaction {
         $self->rel_exists($status->{user}{screen_name});
     }
     elsif ($c eq "u") {
-        say sprintf "http://twitter.com/%s/status/%s", $status->{user}{screen_name}, $status->{id};
+        say sprintf "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
     }
 
     $self->done;
