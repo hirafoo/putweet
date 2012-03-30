@@ -571,8 +571,12 @@ sub ask_reaction {
     elsif ($c eq "f") {
         my $reply_id = $status->{in_reply_to_status_id};
         if ($reply_id) {
-            my $target_status = $self->nt->show_status({id => $reply_id});
-            $self->print_status([$target_status]);
+            my $target_status;
+            while ($reply_id) {
+                $target_status = $self->nt->show_status({id => $reply_id});
+                $self->print_status([$target_status]);
+                $reply_id = $target_status->{in_reply_to_status_id} or 0;
+            }
             return $self->ask_reaction([$target_status]);
         }
         else {
