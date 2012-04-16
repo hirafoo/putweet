@@ -569,6 +569,9 @@ sub ask_reaction {
         }
     }
     elsif ($c eq "f") {
+        clear;
+        $self->print_status([$status]);
+
         my $reply_id = $status->{in_reply_to_status_id};
         if ($reply_id) {
             my $target_status;
