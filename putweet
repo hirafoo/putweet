@@ -92,7 +92,7 @@ sub init_accessor {
 sub init_menu {
     my ($self, $data) = @_;
 
-    my $menu = left(10, 'type') . left(5, 'cmd') . left(18, 'method') . left(21, 'args') . "explanation";
+    my $menu = left(10, 'type') . left(5, 'cmd') . left(20, 'method') . left(21, 'args') . "explanation";
     $menu .= "\n%s\n";
 
     my @menu_items = @{$data->{menu}->{item}};
@@ -103,7 +103,7 @@ sub init_menu {
         for my $contents (@{$data->{menu}->{contents}->[$i]}) {
             my ($cmd, $method, $args, $explanation) = @$contents;
             $explanation ||= '';
-            my $str = ' ' x 10 . left(5, $cmd) . left(18, $method) . left(21, $args) . $explanation . "\n";
+            my $str = ' ' x 10 . left(5, $cmd) . left(20, $method) . left(21, $args) . $explanation . "\n";
             $menu .= $str;
             $self->dispatch->{$cmd} = $method;
         }
@@ -433,6 +433,16 @@ sub update {
     $self->done;
 }
 
+sub new_direct_message {
+    my ($self, @args) = @_;
+    my $screen_name = shift @args;
+    my $text = join " ", @args;
+    $screen_name and $text or $self->done('args: screen_name, text');
+    $self->confirm("$screen_name: $text");
+    $self->nt->new_direct_message($screen_name, utf->decode($text));
+    $self->done("send done");
+}
+
 sub user_timeline {
     my ($self, $screen_name, $count) = @_;
     $screen_name or return $self->done('args: id/screen_name');
@@ -625,6 +635,7 @@ sub confirm {
     my ($self, @value) = @_;
     my $method = (split /::/, (caller 1)[3])[-1];
     say "$method(@value)";
+    say;
     $self->term->readline("do ok? (y/n): ") eq 'y';
 }
 
@@ -888,6 +899,11 @@ menu:
         - update
         - status
         - ~
+      -
+        - D
+        - new_direct_message
+        - screen_name, text
+        - send direct message
     -
       -
         - i
