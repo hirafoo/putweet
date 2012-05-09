@@ -51,15 +51,15 @@ sub left {
     sprintf "$format", $str
 }
 sub width { (GetTerminalSize)[0] }
-my %DAY_MAP = (
-    Mon => "月",
-    Tue => "火",
-    Wed => "水",
-    Thu => "木",
-    Fri => "金",
-    Sat => "土",
-    Sun => "日",
-);
+my %DAY_MAP = qw/
+    Mon 月
+    Tue 火
+    Wed 水
+    Thu 木
+    Fri 金
+    Sat 土
+    Sun 日
+/;
 
 sub init {
     my ($self, @args) = @_;
@@ -375,7 +375,7 @@ sub rel_exists {
 
     my $res1 = $self->nt->friendship_exists($id1, $id2);
     my $res2 = $self->nt->friendship_exists($id2, $id1);
-    my %rel = (0 => 'NOT ', 1 => '');
+    my %rel = (false => 'NOT ', true => '');
 
     say "$id1 $rel{$res1}following $id2";
     say "$id2 $rel{$res2}following $id1";
