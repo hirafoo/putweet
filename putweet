@@ -531,6 +531,7 @@ sub ask_reaction {
             " v[number] : show user's favorited",
             " x[number] : show relation between the user",
             " u[number] : show permalink the tweet",
+            " a[number] : show the tweet",
             "  [other]  : end",
             "-" x width;
     }
@@ -626,6 +627,10 @@ sub ask_reaction {
     }
     elsif ($c eq "u") {
         say sprintf "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
+    }
+    elsif ($c eq "a") {
+        my $id = $status->{id};
+        $self->show_status($id);
     }
 
     $self->done;
