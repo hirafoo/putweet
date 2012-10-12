@@ -375,10 +375,10 @@ sub rel_exists {
 
     my $res1 = $self->nt->friendship_exists($id1, $id2);
     my $res2 = $self->nt->friendship_exists($id2, $id1);
-    my %rel = (0 => 'NOT ', 1 => '');
+    my %rel = (0 => 'NOT ', 1 => '', false => 'NOT ', true => '');
 
-    say "$id1 $rel{$res1}following $id2";
-    say "$id2 $rel{$res2}following $id1";
+    say sprintf '%s %sfollowing %s', $id1, $rel{$res1}, $id2;
+    say sprintf '%s %sfollowing %s', $id2, $rel{$res2}, $id1;
     $self->done;
 }
 
