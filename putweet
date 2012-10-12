@@ -810,7 +810,9 @@ sub favorited {
     my $favs;
     my $furl = Furl->new;
     my $xml = XMLin($furl->get("http://ja.favstar.fm/users/$screen_name/rss")->content);
-    for my $i (reverse @{$xml->{channel}->{item}}) {
+
+    my $item = $xml->{channel}->{item} or $self->done("no favorited tweets.");
+    for my $i (reverse @$item) {
         my $str = decode_entities(utf->encode($i->{title}));
         $str =~ s/stars?/favs/;
         $favs .= "$str\n";
