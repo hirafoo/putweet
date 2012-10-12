@@ -32,8 +32,9 @@ sub utf { $utf }
 sub clear { system('clear') + 1 }
 sub say { print @_, "\n" }
 sub p {
-    local $Data::Dumper::Indent = 1;
-    local $Data::Dumper::Terse  = 1;
+    local $Data::Dumper::Indent   = 1;
+    local $Data::Dumper::Sortkeys = 1;
+    local $Data::Dumper::Terse    = 1;
     warn Dumper @_;
     my @c = caller;
     print STDERR "  at $c[1]:$c[2]\n\n"
@@ -162,26 +163,18 @@ sub init_nt {
 
 sub passed {
     my ($self, $screen_name) = @_;
+    $screen_name ||= "self";
 
     my $ret;
-    if ($screen_name) {
-        if (ref $self->last_updated->{$screen_name}) {
-            my $diff = (scalar localtime) - $self->last_updated->{$screen_name};
-            $ret = ($diff->seconds < $self->per) ? 0 : 1;
-        }
-        else {
-            $ret = 1;
-        }
+
+    if (ref $self->last_updated->{$screen_name}) {
+        my $diff = (scalar localtime) - $self->last_updated->{$screen_name};
+        $ret = ($diff->seconds < $self->per) ? 0 : 1;
     }
     else {
-        if (ref $self->last_updated->{self}) {
-            my $diff = (scalar localtime) - $self->last_updated->{self};
-            $ret = ($diff->seconds < $self->per) ? 0 : 1;
-        }
-        else {
-            $ret = 1;
-        }
+        $ret = 1;
     }
+
     $ret;
 }
 
@@ -219,6 +212,13 @@ sub update_statuses {
     $self->passed or return;
 
     $self->init_statuses;
+}
+
+sub clear_statuses {
+    my ($self) = @_;
+
+    $self->$_(+{}) for qw/statuses last_updated/;
+    $self->done("clear !");
 }
 
 sub run {
@@ -375,7 +375,7 @@ sub rel_exists {
 
     my $res1 = $self->nt->friendship_exists($id1, $id2);
     my $res2 = $self->nt->friendship_exists($id2, $id1);
-    my %rel = (false => 'NOT ', true => '');
+    my %rel = (0 => 'NOT ', 1 => '');
 
     say "$id1 $rel{$res1}following $id2";
     say "$id2 $rel{$res2}following $id1";
@@ -959,7 +959,7 @@ menu:
         - user_id/screen_name
         - ~
       -
-        - l
+        - L
         - show_blocking
         - none
         - ~
@@ -1002,6 +1002,11 @@ menu:
         - help
         - none
         - ~
+      -
+        - l
+        - clear_statuses
+        - none
+        - clear statuses cache
       -
         - v
         - favorited
