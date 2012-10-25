@@ -628,7 +628,8 @@ sub ask_reaction {
         if ($reply_id) {
             my @follow_statuses = ($status);
             while ($reply_id) {
-                my $parent_status = $self->nt->show_status({id => $reply_id});
+                my $parent_status = $self->nt->show_status({id => $reply_id, include_entities => 1});
+                $parent_status = $self->expand_entities($parent_status);
                 unshift @follow_statuses, $parent_status;
                 $reply_id = $parent_status->{in_reply_to_status_id} or 0;
             }
