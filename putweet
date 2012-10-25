@@ -189,13 +189,13 @@ sub expand_entities {
     my $entities = $status->{entities};
     if (my $medias = $entities->{media}) {
         for my $media (@$medias) {
-            $status->{text} =~ s/$media->{url}/$media->{expanded_url}/;
+            $status->{text} =~ s/\Q$media->{url}\E/$media->{expanded_url}/;
         }
     }
     else {
         my $urls = $entities->{urls};
         for my $url (@$urls) {
-            $status->{text} =~ s/$url->{url}/$url->{expanded_url}/;
+            $status->{text} =~ s/\Q$url->{url}\E/$url->{expanded_url}/;
         }
     }
     return $status;
@@ -520,7 +520,9 @@ sub print_status {
         my $org_status;
         if ($status->{retweeted_status}) {
             $org_status = clone $status;
+            $org_status = $self->expand_entities($org_status);
             $status = clone $status->{retweeted_status};
+            $status = $self->expand_entities($status);
         }
         my ($source, $source_url) = $self->fix_source($status->{source});
 
