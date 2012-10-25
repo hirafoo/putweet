@@ -29,8 +29,11 @@ $YAML::Syck::ImplicitUnicode = 1;
 my $utf = find_encoding("utf-8");
 
 sub utf { $utf }
+
 sub clear { system('clear') + 1 }
+
 sub say { print @_, "\n" }
+
 sub p {
     local $Data::Dumper::Indent   = 1;
     local $Data::Dumper::Sortkeys = 1;
@@ -39,6 +42,7 @@ sub p {
     my @c = caller;
     print STDERR "  at $c[1]:$c[2]\n\n"
 }
+
 sub parse_time {
     my ($created_at, $opt) = @_;
     my $utc = $opt ? (Time::Piece->strptime($created_at, '%a, %d %b %Y %H:%M:%S %z'))
@@ -46,12 +50,15 @@ sub parse_time {
     my $jst = localtime($utc->epoch);
     $jst;
 }
+
 sub left {
     my ($length, $str) = @_;
     my $format = '%'. -$length . 's';
     sprintf "$format", $str
 }
+
 sub width { (GetTerminalSize)[0] }
+
 my %DAY_MAP = qw/
     Mon 月
     Tue 火
@@ -146,7 +153,7 @@ sub init_nt {
         pit_set("putweet", data => $c);
         pit_set("putweet_user_list", data => $putweet_user);
 
-        ### OBSOLETE: basic era
+        ### OBSOLETE: basic auth
         #my $username = $self->term->readline('username? :');
         #my $password = $self->term->readline('password? :');
         ## I am not as kind as use Term::ReadPassword
@@ -159,6 +166,39 @@ sub init_nt {
         #return $self->nt(Net::Twitter::Lite->new(%c));
     }
     $self->nt(Net::Twitter::Lite->new(%$c));
+}
+
+sub fix_source {
+    my ($self, $source) = @_;
+    $source ||= "";
+    my $source_url = "";
+
+    if ($source) {
+        $source = decode_entities $source;
+        $source =~ m{<.*?href="(.*?)".*?>(.+)</a>} and $source_url = $1 and $source = $2;
+        $source_url and $self->config->{show_client_source} and $source .= " $source_url";
+        $source = "via $source";
+        $source = utf->encode($source) if utf8::is_utf8($source);
+    }
+    return ($source, $source_url);
+}
+
+sub expand_entities {
+    my ($self, $status) = @_;
+
+    my $entities = $status->{entities};
+    if (my $medias = $entities->{media}) {
+        for my $media (@$medias) {
+            $status->{text} =~ s/$media->{url}/$media->{expanded_url}/;
+        }
+    }
+    else {
+        my $urls = $entities->{urls};
+        for my $url (@$urls) {
+            $status->{text} =~ s/$url->{url}/$url->{expanded_url}/;
+        }
+    }
+    return $status;
 }
 
 sub passed {
@@ -196,9 +236,15 @@ sub init_statuses {
     );
     for my $tl_name ($self->tl_types_array) {
         my $opt = $tl_opt{$tl_name} || +{};
+        $opt = +{
+            %$opt,
+            include_rts => 1,
+            include_entities => 1,
+        };
         my $statuses = $self->nt->$tl_name($opt);
         for my $status (@$statuses) {
             $status->{id} or next;# sometimes api return blank data
+            $status = $self->expand_entities($status);
             $self->statuses->{$tl_name}->{$status->{id}} = $status;
         }
         say "got $tl_name";
@@ -336,7 +382,8 @@ sub show_status {
     my ($self, $id) = @_;
     $id or return $self->done('args: status id');
 
-    my $status = $self->nt->show_status({id => $id});
+    my $status = $self->nt->show_status({id => $id, include_entities => 1});
+    $status = $self->expand_entities($status);
     $self->print_status([$status]);
     $self->ask_reaction([$status]);
 }
@@ -450,8 +497,9 @@ sub user_timeline {
 
     my $statuses;
     if ($self->passed($screen_name)) {
-        $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count, include_rts => 1});
+        $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1});
         for my $status (@$statuses) {
+            $status = $self->expand_entities($status);
             $self->statuses->{user_timeline}->{$screen_name}->{$status->{id}} = $status;
         }
         $self->last_updated->{$screen_name} = scalar localtime;
@@ -474,12 +522,7 @@ sub print_status {
             $org_status = clone $status;
             $status = clone $status->{retweeted_status};
         }
-        my $source = decode_entities $status->{source} || '';
-        my $source_url;
-        $source and $source =~ m{<.*?href="(.*?)".*?>(.+)</a>} and $source_url = $1 and $source = $2;
-        $source and $source_url and $self->config->{show_client_source} and $source .= " $source_url";
-        $source and $source = "via $source";
-        $source = utf->encode($source) if utf8::is_utf8($source);
+        my ($source, $source_url) = $self->fix_source($status->{source});
 
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
             "in reply to $status->{in_reply_to_screen_name}" : '';
@@ -771,7 +814,10 @@ sub search {
 
     my $word = join " ", @words;
     $word = utf->decode($word);
-    my $statuses = $self->nt->search({q => $word, lang => 'ja'})->{results};
+    my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1})->{results};
+    for my $status (@$statuses) {
+        $status = $self->expand_entities($status);
+    }
     $self->print_status($statuses, 1);
     $self->ask_reaction($statuses);
     $self->done;
