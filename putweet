@@ -369,12 +369,13 @@ sub destroy_status {
     my ($self, $id) = @_;
     $id or return $self->done('args: status id');
 
-    my $status = $self->nt->show_status({id => $id});
+    my $status = $self->statuses->{user_timeline}->{$self->user}->{$id};
     $status->{user}{screen_name} eq $self->user or return $self->done("the status is not yours");
 
     $self->confirm(utf->encode($status->{text})) or $self->main_loop;
 
     $self->nt->destroy_status({id => $id});
+    delete $self->statuses->{user_timeline}->{$status->{user}{screen_name}}->{$id};
     $self->done;
 }
 
@@ -491,13 +492,17 @@ sub new_direct_message {
 }
 
 sub user_timeline {
-    my ($self, $screen_name, $count) = @_;
+    my ($self, $screen_name, $count, $page) = @_;
     $screen_name or return $self->done('args: id/screen_name');
     $count ||= $self->count;
+    $page  ||= 0;
 
     my $statuses;
     if ($self->passed($screen_name)) {
-        $statuses = $self->nt->user_timeline({screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1});
+        $statuses = $self->nt->user_timeline({
+            screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
+            page => $page,
+        });
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
             $self->statuses->{user_timeline}->{$screen_name}->{$status->{id}} = $status;
