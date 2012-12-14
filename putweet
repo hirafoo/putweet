@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 use strict;
 use warnings;
 
@@ -54,7 +54,7 @@ sub parse_time {
 sub left {
     my ($length, $str) = @_;
     my $format = '%'. -$length . 's';
-    sprintf "$format", $str
+    sprintf "$format", $str;
 }
 
 sub width { (GetTerminalSize)[0] }
@@ -202,13 +202,13 @@ sub expand_entities {
 }
 
 sub passed {
-    my ($self, $screen_name) = @_;
-    $screen_name ||= "self";
+    my ($self, $type, $screen_name) = @_;
+    $screen_name ||= $self->user;
 
     my $ret;
 
-    if (ref $self->last_updated->{$screen_name}) {
-        my $diff = (scalar localtime) - $self->last_updated->{$screen_name};
+    if (ref $self->last_updated->{$type}->{$screen_name}) {
+        my $diff = (scalar localtime) - $self->last_updated->{$type}->{$screen_name};
         $ret = ($diff->seconds < $self->per) ? 0 : 1;
     }
     else {
@@ -250,12 +250,12 @@ sub init_statuses {
         say "got $tl_name";
     }
     say "update!";
-    $self->last_updated->{self} = scalar localtime;
+    $self->last_updated->{basic}->{$self->user} = scalar localtime;
 }
 
 sub update_statuses {
     my ($self) = @_;
-    $self->passed or return;
+    $self->passed("basic") or return;
 
     $self->init_statuses;
 }
@@ -274,10 +274,9 @@ sub run {
 
 sub main_loop {
     my ($self, @args) = @_;
-    $self->last_updated->{self} or do {
-        $self->last_updated->{self} = ((scalar localtime) - 60 * 10);
-    };
-    clear and say "now login as -> " . $self->user . "   last updated: ". $self->last_updated->{self}->hms and say;
+    $self->last_updated->{basic}->{$self->user} ||= ((scalar localtime) - 60 * 10);
+
+    clear and say "now login as -> " . $self->user . "   last updated: ". $self->last_updated->{basic}->{$self->user}->hms and say;
     if (@args and my $func = $self->dispatch->{shift @args}) {
         local $@;
         eval { $self->$func(@args) };
@@ -293,7 +292,7 @@ sub main_loop {
 sub done {
     my ($self, $message) = @_;
 
-    $message ? say $message : say;
+    say $message || "";
     my $done = $self->term->readline("done.");
     $self->main_loop;
 }
@@ -358,24 +357,28 @@ sub change_user {
     $self->config($c_user->{config});
     $self->$_(undef) for qw/_blocking_users _user_info _favs/;
     $self->$_(+{}) for qw/_followers _friends _list_memberships/;
-    $self->last_updated->{self} = 0;
+    $self->last_updated->{basic}->{$self->user} = 0;
     $self->statuses->{$_} = {} for $self->tl_types_array;
-    say 'getting statuses. wait a moment...';
+    say 'getting statuses...';
     #$self->init_statuses;
     $self->done("user: $user");
 }
 
 sub destroy_status {
-    my ($self, $id) = @_;
-    $id or return $self->done('args: status id');
+    my ($self, $args) = @_;
+    $args or return $self->done('args: status_id[,status_id]');
 
-    my $status = $self->statuses->{user_timeline}->{$self->user}->{$id};
-    $status->{user}{screen_name} eq $self->user or return $self->done("the status is not yours");
+    my @ids = ref $args ? @$args : ($args);
 
-    $self->confirm(utf->encode($status->{text})) or $self->main_loop;
+    for my $id (@ids) {
+        my $status = $self->statuses->{user_timeline}->{$self->user}->{$id};
+        $status->{user}{screen_name} eq $self->user or return $self->done("the status is not yours");
 
-    $self->nt->destroy_status({id => $id});
-    delete $self->statuses->{user_timeline}->{$status->{user}{screen_name}}->{$id};
+        $self->confirm(utf->encode($status->{text})) or $self->main_loop;
+
+        $self->nt->destroy_status({id => $id});
+        delete $self->statuses->{user_timeline}->{$status->{user}{screen_name}}->{$id};
+    }
     $self->done;
 }
 
@@ -498,7 +501,7 @@ sub user_timeline {
     $page  ||= 0;
 
     my $statuses;
-    if ($self->passed($screen_name)) {
+    if ($self->passed(user_timeline => $screen_name)) {
         $statuses = $self->nt->user_timeline({
             screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
             page => $page,
@@ -507,7 +510,7 @@ sub user_timeline {
             $status = $self->expand_entities($status);
             $self->statuses->{user_timeline}->{$screen_name}->{$status->{id}} = $status;
         }
-        $self->last_updated->{$screen_name} = scalar localtime;
+        $self->last_updated->{user_timeline}->{$screen_name} = scalar localtime;
     }
     $statuses = $self->statuses->{user_timeline}->{$screen_name};
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
@@ -590,13 +593,13 @@ sub ask_reaction {
     my $in = $self->term->readline('input: ');
     say;
 
-    $in =~ /^([a-zA-Z])?(\d+)?$/;
-    my ($c, $n) = ($1, $2);
-    $c ||= "";
-    $n ||= "";
-    my $status = "";
-    if ($n) {
-        $n =~ /^\d+$/ and $statuses->[$n * -1] or return $self->done("invalid input.");
+    $in =~ /^([a-zA-Z])([\d,]+)$/;
+    my $c = $1 || "";
+    my $n = $2 || "";
+    my $status;
+
+    if ($n =~ /^\d+$/) {
+        $statuses->[$n * -1] or return $self->done("invalid input.");
         $n *= -1;
         $status = $statuses->[$n];
     }
@@ -662,8 +665,17 @@ sub ask_reaction {
         $self->report_spam($screen_name);
     }
     elsif ($c eq "d") {
-        my $id = $status->{id};
-        $self->destroy_status($id);
+        if ($status) {
+            my $id = $status->{id};
+            $self->destroy_status($id);
+        }
+        else {
+            my @ids;
+            for my $id (split /,/, $n) {
+                push @ids, $statuses->[$id * -1]->{id};
+            }
+            $self->destroy_status(\@ids);
+        }
     }
     elsif ($c eq "b") {
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
@@ -789,6 +801,30 @@ sub retweets_of_me {
     $self->print_status($statuses) and $self->done;
 }
 
+sub retweeted_by_user {
+    my ($self, $screen_name, $count, $page) = @_;
+    $screen_name ||= $self->user;
+    $count ||= $self->count;
+    $page  ||= 0;
+
+    my $statuses;
+    if ($self->passed(retweeted_by_user => $screen_name)) {
+        $statuses = $self->nt->retweeted_by_user({
+            screen_name => $screen_name, count => $count, include_entities => 1,
+            page => $page,
+        });
+        for my $status (@$statuses) {
+            $status = $self->expand_entities($status);
+            $self->statuses->{retweeted_by_user}->{$screen_name}->{$status->{id}} = $status;
+        }
+        $self->last_updated->{retweeted_by_user}->{$screen_name} = scalar localtime;
+    }
+    $statuses = $self->statuses->{retweeted_by_user}->{$screen_name};
+    $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
+    $self->print_status($statuses);
+    $self->ask_reaction($statuses);
+}
+
 sub list_memberships {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
@@ -895,7 +931,7 @@ sub change_config {
         $self->done('configed.');
     }
     else {
-        say "your config...";
+        say "your config";
         p $self->config;
         $self->done;
     }
@@ -944,6 +980,11 @@ menu:
         - retweets_of_me
         - count?
         - show your RTed status
+      -
+        - T
+        - retweeted_by_user
+        - screen_name?
+        - show one user's RT
     -
       -
         - a
