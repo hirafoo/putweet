@@ -593,7 +593,7 @@ sub ask_reaction {
     my $in = $self->term->readline('input: ');
     say;
 
-    $in =~ /^([a-zA-Z])([\d,]+)$/;
+    $in =~ /^([a-zA-Z])([\d,\-]+)$/;
     my $c = $1 || "";
     my $n = $2 || "";
     my $status;
@@ -669,10 +669,17 @@ sub ask_reaction {
             my $id = $status->{id};
             $self->destroy_status($id);
         }
-        else {
+        elsif ($n) {
             my @ids;
-            for my $id (split /,/, $n) {
-                push @ids, $statuses->[$id * -1]->{id};
+            if ($n =~ /^(\d+)-(\d+)$/) {
+                for my $id ($1 .. $2) {
+                    push @ids, $statuses->[$id * -1]->{id};
+                }
+            }
+            elsif ($n =~ /,/) {
+                for my $id (split /,/, $n) {
+                    push @ids, $statuses->[$id * -1]->{id};
+                }
             }
             $self->destroy_status(\@ids);
         }
