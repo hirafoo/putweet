@@ -33,6 +33,10 @@ sub utf { $utf }
 sub clear { system('clear') + 1 }
 
 sub say { print @_, "\n" }
+sub sayf {
+    my ($format, @list) = @_;
+    printf "$format\n", @list;
+}
 
 sub p {
     local $Data::Dumper::Indent   = 1;
@@ -366,19 +370,33 @@ sub change_user {
 
 sub destroy_status {
     my ($self, $args) = @_;
-    $args or return $self->done('args: status_id[,status_id]');
+    $args or return $self->done('args: status_id[,status_id|-status_id]');
 
-    my @ids = ref $args ? @$args : ($args);
+    if (ref $args) {
+        my @ids = @$args;
+        sayf '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{text}) for @ids;
 
-    for my $id (@ids) {
+        $self->confirm("delete these ?") or $self->main_loop;
+
+        for my $id (@ids) {
+            $self->nt->destroy_status({id => $id});
+            sayf "destroy_status(%s)", utf->encode($self->statuses->{user_timeline}->{$self->user}->{$id}->{text});
+            delete $self->statuses->{user_timeline}->{$self->user}->{$id};
+        }
+    }
+    else {
+        my $id = $args;
         my $status = $self->statuses->{user_timeline}->{$self->user}->{$id};
         $status->{user}{screen_name} eq $self->user or return $self->done("the status is not yours");
 
         $self->confirm(utf->encode($status->{text})) or $self->main_loop;
 
         $self->nt->destroy_status({id => $id});
-        delete $self->statuses->{user_timeline}->{$status->{user}{screen_name}}->{$id};
+        delete $self->statuses->{user_timeline}->{$self->user}->{$id};
     }
+
+    $self->last_updated->{user_timeline}->{$self->user} = undef if ! keys %{$self->statuses->{user_timeline}->{$self->user}};
+
     $self->done;
 }
 
@@ -495,22 +513,23 @@ sub new_direct_message {
 }
 
 sub user_timeline {
-    my ($self, $screen_name, $count, $page) = @_;
+    my ($self, $screen_name, $count, $page, $max_id) = @_;
     $screen_name or return $self->done('args: id/screen_name');
     $count ||= $self->count;
     $page  ||= 0;
+    $max_id ||= 0;
 
     my $statuses;
     if ($self->passed(user_timeline => $screen_name)) {
         $statuses = $self->nt->user_timeline({
             screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
-            page => $page,
+            page => $page, ($max_id ? (max_id => $max_id) : ()),
         });
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
             $self->statuses->{user_timeline}->{$screen_name}->{$status->{id}} = $status;
         }
-        $self->last_updated->{user_timeline}->{$screen_name} = scalar localtime;
+        $self->last_updated->{user_timeline}->{$screen_name} = scalar localtime if @$statuses;
     }
     $statuses = $self->statuses->{user_timeline}->{$screen_name};
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
@@ -593,9 +612,11 @@ sub ask_reaction {
     my $in = $self->term->readline('input: ');
     say;
 
-    $in =~ /^([a-zA-Z])([\d,\-]+)$/;
-    my $c = $1 || "";
-    my $n = $2 || "";
+    my ($c, $n) = ("", "");
+    if ($in =~ /^([a-zA-Z])([\d,\-]+)$/) {
+        $c = $1;
+        $n = $2;
+    }
     my $status;
 
     if ($n =~ /^\d+$/) {
@@ -604,7 +625,7 @@ sub ask_reaction {
         $status = $statuses->[$n];
     }
 
-    if ($c eq "" and $n) {
+    if ($n and !$c) {
         say "reply to: \@$status->{user}{screen_name}: " . utf->encode(decode_entities $status->{text});
         my $text = $self->term->readline('@' . $status->{user}{screen_name} . ' ');
         $text = "\@$status->{user}{screen_name} $text";
@@ -671,16 +692,19 @@ sub ask_reaction {
         }
         elsif ($n) {
             my @ids;
-            if ($n =~ /^(\d+)-(\d+)$/) {
-                for my $id ($1 .. $2) {
-                    push @ids, $statuses->[$id * -1]->{id};
+
+            my @parts = split /,/, $n;
+            for my $i (@parts) {
+                if ($i =~ /^\d+$/) {
+                    push @ids, $statuses->[$i * -1]->{id} if $statuses->[$i * -1]->{id};
+                }
+                elsif ($i =~ /^(\d+)-(\d+)$/) {
+                    for my $id ($1 .. $2) {
+                        push @ids, $statuses->[$id * -1]->{id};
+                    }
                 }
             }
-            elsif ($n =~ /,/) {
-                for my $id (split /,/, $n) {
-                    push @ids, $statuses->[$id * -1]->{id};
-                }
-            }
+
             $self->destroy_status(\@ids);
         }
     }
@@ -696,7 +720,7 @@ sub ask_reaction {
         $self->rel_exists($status->{user}{screen_name});
     }
     elsif ($c eq "u") {
-        say sprintf "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
+        sayf "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
     }
     elsif ($c eq "a") {
         my $id = $status->{id};
