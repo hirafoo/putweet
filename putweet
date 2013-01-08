@@ -23,6 +23,7 @@ use Time::Piece;
 use YAML::Syck qw/Load/;
 use XML::Simple qw/XMLin/;
 
+$| = 1;
 $XML::Simple::PREFERRED_PARSER = "XML::Parser";
 $YAML::Syck::ImplicitUnicode = 1;
 
@@ -657,13 +658,16 @@ sub ask_reaction {
         clear;
         my $reply_id = $status->{in_reply_to_status_id};
         if ($reply_id) {
+            print "getting tweets ";
             my @follow_statuses = ($status);
             while ($reply_id) {
                 my $parent_status = $self->nt->show_status({id => $reply_id, include_entities => 1});
                 $parent_status = $self->expand_entities($parent_status);
                 unshift @follow_statuses, $parent_status;
+                print ".";
                 $reply_id = $parent_status->{in_reply_to_status_id} or 0;
             }
+            say;
             $self->print_status(\@follow_statuses);
             return $self->ask_reaction(\@follow_statuses);
         }
