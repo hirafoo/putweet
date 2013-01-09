@@ -17,6 +17,7 @@ use Encode qw/find_encoding/;
 use Furl;
 use HTML::Entities qw/decode_entities/;
 use Net::Twitter::Lite;
+use Term::ANSIColor qw/colored/;
 use Term::ReadKey qw/GetTerminalSize/;
 use Term::ReadLine;
 use Time::Piece;
@@ -62,6 +63,11 @@ sub left {
     sprintf "$format", $str;
 }
 
+sub line {
+    my $line = shift or "-";
+    say $line x width();
+}
+
 sub width { (GetTerminalSize)[0] }
 
 my %DAY_MAP = qw/
@@ -105,7 +111,7 @@ sub init_accessor {
 sub init_menu {
     my ($self, $data) = @_;
 
-    my $menu = left(10, 'type') . left(5, 'cmd') . left(20, 'method') . left(21, 'args') . "explanation";
+    my $menu = left(10, 'type') . left(5, 'key') . left(20, 'method') . left(21, 'args') . "explanation";
     $menu .= "\n%s\n";
 
     my @menu_items = @{$data->{menu}->{item}};
@@ -114,11 +120,11 @@ sub init_menu {
     for (my $i = 0; $i < @menu_items; $i++) {
         $menu .= "$menu_items[$i]\n";
         for my $contents (@{$data->{menu}->{contents}->[$i]}) {
-            my ($cmd, $method, $args, $explanation) = @$contents;
+            my ($key, $method, $args, $explanation) = @$contents;
             $explanation ||= '';
-            my $str = ' ' x 10 . left(5, $cmd) . left(20, $method) . left(21, $args) . $explanation . "\n";
+            my $str = sprintf "%s%s%s%s%s\n", ' ' x 10, left(5, $key), left(20, $method), left(21, $args), $explanation;
             $menu .= $str;
-            $self->dispatch->{$cmd} = $method;
+            $self->dispatch->{$key} = $method;
         }
     }
     $self->menu($menu);
@@ -543,7 +549,6 @@ sub print_status {
 
     @$statuses = reverse @$statuses;
     my $i = @$statuses;
-    my $line = "=" x width;
     for my $status (@$statuses) {
         my $org_status;
         if ($status->{retweeted_status}) {
@@ -555,22 +560,29 @@ sub print_status {
         my ($source, $source_url) = $self->fix_source($status->{source});
 
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
-            "in reply to $status->{in_reply_to_screen_name}" : '';
+            colored(["red"], "in reply to $status->{in_reply_to_screen_name}") : '';
+
+        if (my @screen_names = ($status->{text} =~ /\@[\w_]+/g)) {
+            for my $screen_name (@screen_names) {
+                $status->{text} =~ s/$screen_name/colored(["blue"], $screen_name)/ge;
+            }
+        }
 
         my $t = parse_time($status->{created_at}, $opt);
         my $num = sprintf '%2d', $i;
 
         my $_screen_name = ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user});
         if ($org_status) {
+            $_screen_name = colored(["green"], $_screen_name);
             $_screen_name .= " (RT:$org_status->{user}{screen_name})";
             $status->{text} =~ s/^RT @.+?//;
         }
         my $retweet_count = "";
         if ($retweet_count = $status->{retweet_count}) {
-            $retweet_count = "($retweet_count Retweeted)";
+            $retweet_count = colored(["green"], "($retweet_count Retweeted)");
         }
 
-        say $line;
+        line("=");
         say join " ", grep {$_}
             "[$num]", $t->ymd('/'), "($DAY_MAP{$t->day})", $t->hms,
             $_screen_name,
@@ -580,7 +592,7 @@ sub print_status {
 
         $i--;
     }
-    say $line;
+    line("=");
 }
 
 sub ask_reaction {
