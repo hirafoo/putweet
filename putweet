@@ -65,7 +65,7 @@ sub left {
 
 sub line {
     my $line = shift or "-";
-    say $line x width();
+    return $line x width();
 }
 
 sub width { (GetTerminalSize)[0] }
@@ -111,8 +111,7 @@ sub init_accessor {
 sub init_menu {
     my ($self, $data) = @_;
 
-    my $menu = left(10, 'type') . left(5, 'key') . left(20, 'method') . left(21, 'args') . "explanation";
-    $menu .= "\n%s\n";
+    my $menu = sprintf "%s%s%s%s%s\n%%s\n", left(10, 'type'), left(5, 'key'), left(20, 'method'), left(21, 'args'), "explanation";
 
     my @menu_items = @{$data->{menu}->{item}};
     my $menu_contents = $data->{menu}->{contents};
@@ -560,11 +559,11 @@ sub print_status {
         my ($source, $source_url) = $self->fix_source($status->{source});
 
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
-            colored(["red"], "in reply to $status->{in_reply_to_screen_name}") : '';
+            colored(["cyan"], "in reply to $status->{in_reply_to_screen_name}") : '';
 
         if (my @screen_names = ($status->{text} =~ /\@[\w_]+/g)) {
             for my $screen_name (@screen_names) {
-                $status->{text} =~ s/$screen_name/colored(["blue"], $screen_name)/ge;
+                $status->{text} =~ s/$screen_name/colored(["cyan"], $screen_name)/ge;
             }
         }
 
@@ -582,7 +581,7 @@ sub print_status {
             $retweet_count = colored(["green"], "($retweet_count Retweeted)");
         }
 
-        line("=");
+        say line("=");
         say join " ", grep {$_}
             "[$num]", $t->ymd('/'), "($DAY_MAP{$t->day})", $t->hms,
             $_screen_name,
@@ -592,7 +591,7 @@ sub print_status {
 
         $i--;
     }
-    line("=");
+    say line("=");
 }
 
 sub ask_reaction {
@@ -899,6 +898,43 @@ sub list_memberships {
     say $self->_list_memberships->{$screen_name} and return $self->done;
 }
 
+sub all_lists {
+    my ($self, $screen_name) = @_;
+    $screen_name ||= $self->user;
+
+    my $lists = $self->nt->all_lists({screen_name => $screen_name});
+    for my $list (@$lists) {
+        sayf "- %s / %d", $list->{name}, $list->{id};
+    }
+    return $self->done;
+}
+
+sub list_statuses {
+    my ($self, $list_name, $screen_name, $count, $page, $max_id) = @_;
+    $list_name or return $self->done('invalid args');
+    $screen_name ||= $self->user;
+    $count ||= $self->count;
+    $page  ||= 0;
+    $max_id ||= 0;
+
+    my $statuses;
+    if ($self->passed("list_$list_name" => $screen_name)) {
+        $statuses = $self->nt->list_statuses({
+            list_id => $list_name, owner_screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
+            page => $page, ($max_id ? (max_id => $max_id) : ()),
+        });
+        for my $status (@$statuses) {
+            $status = $self->expand_entities($status);
+            $self->statuses->{"list_$list_name"}->{$screen_name}->{$status->{id}} = $status;
+        }
+        $self->last_updated->{"list_$list_name"}->{$screen_name} = scalar localtime if @$statuses;
+    }
+    $statuses = $self->statuses->{"list_$list_name"}->{$screen_name};
+    $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
+    $self->print_status($statuses);
+    $self->ask_reaction($statuses);
+}
+
 sub search {
     my ($self, @words) = @_;
     @words or return $self->done('args: word[s]');
@@ -1118,6 +1154,16 @@ menu:
         - list_memberships
         - none
         - ~
+      -
+        - S
+        - all_lists
+        - screen_name?
+        - show user's lists
+      -
+        - E
+        - list_statuses
+        - list_id,screen_name?
+        - show list timeline
     -
       -
         - g
