@@ -45,6 +45,7 @@ sub p {
     local $Data::Dumper::Sortkeys = 1;
     local $Data::Dumper::Terse    = 1;
     warn Dumper @_;
+    $ENV{PT_DEBUG} or return;
     my @c = caller;
     print STDERR "  at $c[1]:$c[2]\n\n"
 }
@@ -64,7 +65,7 @@ sub left {
 }
 
 sub line {
-    my $line = shift or "-";
+    my $line = shift || "-";
     return $line x width();
 }
 
@@ -154,6 +155,7 @@ sub init_nt {
                 access_token_secret => $access_token_secret,
                 config => {
                     tweetable => 1,
+                    show_main_menu => 1,
                     show_react_menu => 1,
                     show_client_source => 0,
                 },
@@ -235,7 +237,8 @@ sub tl_types_array {
 
 sub say_menu {
     my ($self) = @_;
-    say sprintf $self->menu, "=" x width;
+    say sprintf $self->menu, "=" x width
+        if $self->config->{show_main_menu};
 }
 
 sub init_statuses {
@@ -286,9 +289,10 @@ sub main_loop {
     my ($self, @args) = @_;
     $self->last_updated->{basic}->{$self->user} ||= ((scalar localtime) - 60 * 10);
 
-    clear and say "now login as -> " . $self->user . "   last updated: ". $self->last_updated->{basic}->{$self->user}->hms and say;
+    clear;
+    printf "login as: %s  last update: %s\n\n", $self->user, $self->last_updated->{basic}->{$self->user}->hms;
+
     if (@args and my $func = $self->dispatch->{shift @args}) {
-        local $@;
         eval { $self->$func(@args) };
         say $@ if $@;
     }
@@ -561,9 +565,15 @@ sub print_status {
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
             colored(["cyan"], "in reply to $status->{in_reply_to_screen_name}") : '';
 
-        if (my @screen_names = ($status->{text} =~ /\@[\w_]+/g)) {
+        if (my @screen_names = ($status->{text} =~ /\@[a-zA-Z0-9_]+/g)) {
             for my $screen_name (@screen_names) {
                 $status->{text} =~ s/$screen_name/colored(["cyan"], $screen_name)/ge;
+            }
+        }
+
+        if (my @hashtags = ($status->{text} =~ /#[\S]+/g)) {
+            for my $hashtag (@hashtags) {
+                $status->{text} =~ s/\Q$hashtag\E/colored(["blue"], $hashtag)/ge;
             }
         }
 
