@@ -7,9 +7,10 @@ use Class::Accessor::Lite (
     new => 1,
     rw  => [qw/
         dispatch menu nt term user user_list config count per last_updated statuses tl_types
-        _blocking_users _followers _friends _user_info _list_memberships _favs
+        _blocking_users _followers _friends _user_info _list_memberships _favs cache
     /],
 );
+use Cache::Memory::Simple;
 use Config::Pit qw/pit_get pit_set/;
 use Clone qw/clone/;
 use Data::Dumper qw/Dumper/;
@@ -29,7 +30,6 @@ $XML::Simple::PREFERRED_PARSER = "XML::Parser";
 $YAML::Syck::ImplicitUnicode = 1;
 
 my $utf = find_encoding("utf-8");
-
 sub utf { $utf }
 
 sub clear { system('clear') + 1 }
@@ -71,6 +71,8 @@ sub line {
 
 sub width { (GetTerminalSize)[0] }
 
+sub status_key { "status_$_[0]" }
+
 my %DAY_MAP = qw/
     Mon 月
     Tue 火
@@ -99,6 +101,7 @@ sub init {
 }
 sub init_accessor {
     my ($self, $data) = @_;
+    $self->cache(Cache::Memory::Simple->new);
     $self->config({});
     $self->dispatch({});
     $self->statuses({});
@@ -414,7 +417,11 @@ sub show_status {
     my ($self, $id) = @_;
     $id or return $self->done('args: status id');
 
-    my $status = $self->nt->show_status({id => $id, include_entities => 1});
+    my $status = $self->cache->get_or_set(
+        status_key($id), sub {
+            $self->nt->show_status({id => $id, include_entities => 1});
+        }, 60
+    );
     $status = $self->expand_entities($status);
     $self->print_status([$status]);
     $self->ask_reaction([$status]);
@@ -634,11 +641,16 @@ sub ask_reaction {
     my $in = $self->term->readline('input: ');
     say;
 
-    my ($c, $n) = ("", "");
-    if ($in =~ /^([a-zA-Z])([\d,\-]+)$/) {
-        $c = $1;
-        $n = $2;
+
+    my ($c, $n);
+    $in =~ /^([a-zA-Z0-9])([\d,\-]+)$/;
+    $c = $1 || "";
+    $n = $2 || "";
+
+    if ($in =~ /^(\d+)$/) {
+        $n = $1;
     }
+
     my $status;
 
     if ($n =~ /^\d+$/) {
@@ -682,7 +694,12 @@ sub ask_reaction {
             print "getting tweets ";
             my @follow_statuses = ($status);
             while ($reply_id) {
-                my $parent_status = $self->nt->show_status({id => $reply_id, include_entities => 1});
+                my $parent_status = $self->cache->get_or_set(
+                    status_key($reply_id), sub {
+                        $self->nt->show_status({id => $reply_id, include_entities => 1});
+                    }, 60
+                );
+
                 $parent_status = $self->expand_entities($parent_status);
                 unshift @follow_statuses, $parent_status;
                 print ".";
@@ -818,7 +835,12 @@ sub show_user {
 sub retweet {
     my ($self, $id) = @_;
     $id or return $self->done('args: status id');
-    my $status = $self->nt->show_status({id => $id});
+
+    my $status = $self->cache->get_or_set(
+        status_key($id), sub {
+            $self->nt->show_status({id => $id, include_entities => 1});
+        }, 60
+    );
     $self->print_status([$status]);
     $self->confirm("do official retweet ?") or return $self->done;
     $self->nt->retweet($id);
