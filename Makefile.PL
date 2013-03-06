@@ -12,6 +12,7 @@ requires $_ for qw/
     Furl
     HTML::Entities
     Net::Twitter::Lite
+    String::Filter
     Term::ANSIColor
     Term::ReadKey
     Term::ReadLine

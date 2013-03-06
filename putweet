@@ -18,6 +18,7 @@ use Encode qw/find_encoding/;
 use Furl;
 use HTML::Entities qw/decode_entities/;
 use Net::Twitter::Lite;
+use String::Filter;
 use Term::ANSIColor qw/colored/;
 use Term::ReadKey qw/GetTerminalSize/;
 use Term::ReadLine;
@@ -49,6 +50,20 @@ sub p {
     my @c = caller;
     print STDERR "  at $c[1]:$c[2]\n\n"
 }
+
+my $sf = String::Filter->new(
+    rules => [
+        '\@[a-zA-Z0-9_]+' => sub {
+            my $screen_name = shift;
+            return colored(["cyan"], $screen_name);
+        },
+        '#[^\s　]+' => sub {
+            my $hashtag = shift;
+            return colored(["blue"], $hashtag);
+        }
+    ]
+);
+
 
 sub parse_time {
     my ($created_at, $opt) = @_;
@@ -182,6 +197,15 @@ sub init_nt {
     }
     $self->nt(Net::Twitter::Lite->new(%$c));
 }
+
+=pod
+my $twitter = Net::Twitter::Lite->new(
+    apiurl                => 'http://api.twitter.com/1.1',
+    searchapiurl          => 'http://api.twitter.com/1.1/search',
+    search_trends_api_url => 'http://api.twitter.com/1.1',
+    lists_api_url         => 'http://api.twitter.com/1.1',
+);
+=cut
 
 sub fix_source {
     my ($self, $source) = @_;
@@ -572,17 +596,7 @@ sub print_status {
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
             colored(["cyan"], "in reply to $status->{in_reply_to_screen_name}") : '';
 
-        if (my @screen_names = ($status->{text} =~ /\@[a-zA-Z0-9_]+/g)) {
-            for my $screen_name (@screen_names) {
-                $status->{text} =~ s/$screen_name/colored(["cyan"], $screen_name)/ge;
-            }
-        }
-
-        if (my @hashtags = ($status->{text} =~ /#[\S]+/g)) {
-            for my $hashtag (@hashtags) {
-                $status->{text} =~ s/\Q$hashtag\E/colored(["blue"], $hashtag)/ge;
-            }
-        }
+        $status->{text} = $sf->filter($status->{text});
 
         my $t = parse_time($status->{created_at}, $opt);
         my $num = sprintf '%2d', $i;
