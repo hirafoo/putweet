@@ -198,15 +198,6 @@ sub init_nt {
     $self->nt(Net::Twitter::Lite->new(%$c));
 }
 
-=pod
-my $twitter = Net::Twitter::Lite->new(
-    apiurl                => 'http://api.twitter.com/1.1',
-    searchapiurl          => 'http://api.twitter.com/1.1/search',
-    search_trends_api_url => 'http://api.twitter.com/1.1',
-    lists_api_url         => 'http://api.twitter.com/1.1',
-);
-=cut
-
 sub fix_source {
     my ($self, $source) = @_;
     $source ||= "";
@@ -534,7 +525,6 @@ sub update {
         $status = utf->encode($status);
     }
     $post_param->{status} = utf->decode($status);
-    say;
     say "status: $status";
     say "length: ". length utf->decode($status);
     say;
