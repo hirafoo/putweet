@@ -17,7 +17,8 @@ use Data::Dumper qw/Dumper/;
 use Encode qw/find_encoding/;
 use Furl;
 use HTML::Entities qw/decode_entities/;
-use Net::Twitter::Lite;
+use JSON::XS ();
+use Net::Twitter::Lite::WithAPIv1_1;
 use String::Filter;
 use Term::ANSIColor qw/colored/;
 use Term::ReadKey qw/GetTerminalSize/;
@@ -42,10 +43,10 @@ sub sayf {
 }
 
 sub p {
-    local $Data::Dumper::Indent   = 1;
+    #local $Data::Dumper::Indent   = 1;
     local $Data::Dumper::Sortkeys = 1;
     local $Data::Dumper::Terse    = 1;
-    warn Dumper @_;
+    warn Dumper \@_;
     $ENV{PT_DEBUG} or return;
     my @c = caller;
     print STDERR "  at $c[1]:$c[2]\n\n"
@@ -64,19 +65,17 @@ my $sf = String::Filter->new(
     ]
 );
 
-
 sub parse_time {
-    my ($created_at, $opt) = @_;
-    my $utc = $opt ? (Time::Piece->strptime($created_at, '%a, %d %b %Y %H:%M:%S %z'))
-                   : (Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S %z %Y'));
+    my $created_at = shift;
+    my $utc = Time::Piece->strptime($created_at, '%a %b %d %H:%M:%S %z %Y');
     my $jst = localtime($utc->epoch);
-    $jst;
+    return $jst;
 }
 
 sub left {
     my ($length, $str) = @_;
     my $format = '%'. -$length . 's';
-    sprintf "$format", $str;
+    return sprintf "$format", $str;
 }
 
 sub line {
@@ -112,17 +111,17 @@ sub init {
     $self->user_list($user_list);
 
     $self->change_user;
-    $self;
+    return $self;
 }
 sub init_accessor {
     my ($self, $data) = @_;
     $self->cache(Cache::Memory::Simple->new);
-    $self->config({});
-    $self->dispatch({});
-    $self->statuses({});
-    $self->last_updated({});
+    $self->config(+{});
+    $self->dispatch(+{});
+    $self->statuses(+{});
+    $self->last_updated(+{});
     $self->tl_types([qw/home_timeline mentions retweets_of_me/]);#direct_messages favorites
-    $self->statuses->{$_} = {} for $self->tl_types_array;
+    $self->statuses->{$_} = +{} for $self->tl_types_array;
     $self->count(20);
     $self->per(60 * 5);
     $self->term(Term::ReadLine->new(''));
@@ -161,7 +160,7 @@ sub init_nt {
             consumer_secret => $consumer_secret,
             traits => $traits,
         };
-        my $nt = Net::Twitter::Lite->new(%$c);
+        my $nt = Net::Twitter::Lite::WithAPIv1_1->new(%$c);
 
         say and say "go to the url, and input PIN you got.\n\n", $nt->get_authorization_url, "\n";
 
@@ -193,9 +192,9 @@ sub init_nt {
         #    username => $username,
         #    password => $password,
         #);
-        #return $self->nt(Net::Twitter::Lite->new(%c));
+        #return $self->nt(Net::Twitter::Lite::WithAPIv1_1->new(%c));
     }
-    $self->nt(Net::Twitter::Lite->new(%$c));
+    $self->nt(Net::Twitter::Lite::WithAPIv1_1->new(%$c));
 }
 
 sub fix_source {
@@ -474,12 +473,14 @@ sub rel_exists {
     $id1 or return $self->done('args: screen_name{1,2}');
     $id2 or do { $id2 = $id1; $id1 = $self->user; };
 
-    my $res1 = $self->nt->friendship_exists($id1, $id2);
-    my $res2 = $self->nt->friendship_exists($id2, $id1);
-    my %rel = (0 => 'NOT ', 1 => '', false => 'NOT ', true => '');
+    my $res1 = $self->nt->show_friendship(+{source_screen_name => $id1, target_screen_name => $id2});
+    my $res2 = $self->nt->show_friendship(+{source_screen_name => $id2, target_screen_name => $id1});
+    my $bool1 = $res1->{relationship}->{source}->{following} == JSON::XS::true ? 1 : 0;
+    my $bool2 = $res2->{relationship}->{source}->{following} == JSON::XS::true ? 1 : 0;
+    my %rel = (0 => 'NOT ', 1 => '');
 
-    say sprintf '%s %sfollowing %s', $id1, $rel{$res1}, $id2;
-    say sprintf '%s %sfollowing %s', $id2, $rel{$res2}, $id1;
+    sayf '%s %sfollowing %s', $id1, $rel{$bool1}, $id2;
+    sayf '%s %sfollowing %s', $id2, $rel{$bool2}, $id1;
     $self->done;
 }
 
@@ -588,7 +589,7 @@ sub print_status {
 
         $status->{text} = $sf->filter($status->{text});
 
-        my $t = parse_time($status->{created_at}, $opt);
+        my $t = parse_time($status->{created_at});
         my $num = sprintf '%2d', $i;
 
         my $_screen_name = ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user});
@@ -681,12 +682,12 @@ sub ask_reaction {
         say $c eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
         say "RT to: \@$status->{user}{screen_name}: " . utf->encode($status->{text});
         my $text = $self->term->readline('str: ');
-        $text = $text . " RT @" . utf->encode("$status->{user}{screen_name}: $status->{text}");
+        $text = sprintf '%s RT @%s ', $text, utf->encode("$status->{user}{screen_name}: $status->{text}");
         $c eq 't' ? $self->update($text) : $self->update($status->{id}, $text);
     }
     elsif ($c eq "T") {
         my $id = $status->{id};
-        my $retweeters = $self->nt->retweeted_by($id);
+        my $retweeters = $self->nt->retweeters($id);
         for my $i (@$retweeters) {
             say $i->{screen_name};
         }
@@ -701,7 +702,7 @@ sub ask_reaction {
                 my $parent_status = $self->cache->get_or_set(
                     status_key($reply_id), sub {
                         $self->nt->show_status({id => $reply_id, include_entities => 1});
-                    }, 60
+                    }, 60 * 60
                 );
 
                 $parent_status = $self->expand_entities($parent_status);
@@ -786,27 +787,32 @@ sub confirm {
 
 sub show_user {
     my ($self, $id) = @_;
-    $id ||= $self->user;
+    defined $id or $id = $self->user;
     #say $self->_user_info->{body} and return $self->done
     #if $self->_user_info and $self->_user_info->{id} eq $id;
 
-    my %res = %{$self->nt->show_user($id)};
+    my %res = %{$self->nt->show_user(+{screen_name => $id})};
     my %filterd;
     my @want = qw/id name screen_name lang url description location time_zone
                   statuses_count created_at friends_count followers_count protected verified listed_count/;
     @filterd{@want} = @res{@want};
     my $t = parse_time($filterd{created_at});
     $filterd{created_at} = join " ", $t->ymd('/'), "(@{[$t->day]})", $t->hms;
+    for my $key (qw/protected verified/) {
+        if (JSON::XS::is_bool $filterd{$key}) {
+            $filterd{$key} = $filterd{$key} == JSON::XS::true ? 1 : 0;
+        }
+        else {
+            $filterd{$key} = $filterd{$key} ? 1 : 0;
+        }
+    }
 
     my %user_info;
     $user_info{id} = $id;
     for my $key (@want) {
-        $filterd{$key} ||= '';
-        decode_entities $filterd{$key};
-
+        length $filterd{$key} or $filterd{$key} = '';
         $filterd{$key} =~ s/\r?\n/ /g;
-        $filterd{protected} ||= 0;
-        $filterd{verified} ||= 0;
+        decode_entities $filterd{$key};
 
         my $s1 = 55;
         my $s2 = $s1 - 15;
@@ -856,9 +862,10 @@ sub followers {
     $screen_name ||= $self->user;
 
     say $self->_followers->{$screen_name} and return $self->done if $self->_followers->{$screen_name};
+
     my $followers;
-    $followers .= "$_->{screen_name} " for @{$self->nt->followers({screen_name => $screen_name})};
-    $self->_followers->{$screen_name} = ($followers);
+    $followers .= "$_->{screen_name} " for @{$self->nt->followers({screen_name => $screen_name})->{users}};
+    $self->_followers->{$screen_name} = $followers;
     say $self->_followers->{$screen_name} and return $self->done;
 }
 
@@ -867,9 +874,10 @@ sub friends {
     $screen_name ||= $self->user;
 
     say $self->_friends->{$screen_name} and return $self->done if $self->_friends->{$screen_name};
+
     my $friends;
-    $friends .= "$_->{screen_name} " for @{$self->nt->friends({screen_name => $screen_name})};
-    $self->_friends->{$screen_name} = ($friends);
+    $friends .= "$_->{screen_name} " for @{$self->nt->friends({screen_name => $screen_name})->{users}};
+    $self->_friends->{$screen_name} = $friends;
     say $self->_friends->{$screen_name} and return $self->done;
 }
 
@@ -977,7 +985,7 @@ sub search {
 
     my $word = join " ", @words;
     $word = utf->decode($word);
-    my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1})->{results};
+    my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1})->{statuses};
     for my $status (@$statuses) {
         $status = $self->expand_entities($status);
     }
