@@ -18,12 +18,14 @@ use Encode qw/find_encoding/;
 use Furl;
 use HTML::Entities qw/decode_entities/;
 use JSON::XS ();
+#use Net::Twitter;
 use Net::Twitter::Lite::WithAPIv1_1;
 use String::Filter;
 use Term::ANSIColor qw/colored/;
 use Term::ReadKey qw/GetTerminalSize/;
 use Term::ReadLine;
 use Time::Piece;
+use LWP::UserAgent;
 use YAML::Syck qw/Load/;
 use XML::Simple qw/XMLin/;
 
@@ -34,12 +36,22 @@ $YAML::Syck::ImplicitUnicode = 1;
 my $utf = find_encoding("utf-8");
 sub utf { $utf }
 
+my $furl = Furl->new;
+sub furl { $furl }
+
+my $ua = LWP::UserAgent->new(timeout => 3);
+sub ua { $ua }
+
 sub clear { system('clear') + 1 }
 
-sub say { print @_, "\n" }
-sub sayf {
+sub say {
     my ($format, @list) = @_;
-    printf "$format\n", @list;
+    if (@list) {
+        printf "$format\n", @list;
+    } else {
+        $format ||= "";
+        print "$format\n";
+    }
 }
 
 sub p {
@@ -52,6 +64,17 @@ sub p {
     print STDERR "  at $c[1]:$c[2]\n\n"
 }
 
+my @shorten_domains_ary = qw{
+    buff.ly
+    bit.ly
+    htn.to
+    feedly.com
+    nico.ms
+    t.co
+};
+my %shorten_domains;
+@shorten_domains{@shorten_domains_ary} = (1) x @shorten_domains_ary;
+
 my $sf = String::Filter->new(
     rules => [
         '\@[a-zA-Z0-9_]+' => sub {
@@ -61,7 +84,22 @@ my $sf = String::Filter->new(
         '#[^\s　]+' => sub {
             my $hashtag = shift;
             return colored(["blue"], $hashtag);
-        }
+        },
+    ]
+);
+my $sf_expand_url = String::Filter->new(
+    rules => [
+        'https?://[a-zA-Z0-9\.?/&]+' => sub {
+            my $url = shift;
+            $url = utf->encode($url);
+            my $expand = $url;
+            my ($domain) = $url =~ m{^https?://([a-zA-Z0-9\.]+)};
+            while ($shorten_domains{$domain}) {
+                $expand = expand_short_url($url);
+                ($domain) = $expand =~ m{^https?://([a-zA-Z0-9\.]+)};
+            }
+            return $expand;
+        },
     ]
 );
 
@@ -84,6 +122,11 @@ sub line {
 }
 
 sub width { (GetTerminalSize)[0] }
+
+sub expand_short_url {
+    my $url = shift;
+    ua->head($url)->request->uri->as_string;
+}
 
 sub status_key { "status_$_[0]" }
 
@@ -401,13 +444,13 @@ sub destroy_status {
 
     if (ref $args) {
         my @ids = @$args;
-        sayf '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{text}) for @ids;
+        say '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{text}) for @ids;
 
         $self->confirm("delete these ?") or $self->main_loop;
 
         for my $id (@ids) {
             $self->nt->destroy_status({id => $id});
-            sayf "destroy_status(%s)", utf->encode($self->statuses->{user_timeline}->{$self->user}->{$id}->{text});
+            say "destroy_status(%s)", utf->encode($self->statuses->{user_timeline}->{$self->user}->{$id}->{text});
             delete $self->statuses->{user_timeline}->{$self->user}->{$id};
         }
     }
@@ -434,7 +477,7 @@ sub show_status {
     my $status = $self->cache->get_or_set(
         status_key($id), sub {
             $self->nt->show_status({id => $id, include_entities => 1});
-        }, 60
+        }
     );
     $status = $self->expand_entities($status);
     $self->print_status([$status]);
@@ -455,7 +498,7 @@ sub create_friend {
     my ($self, $screen_name) = @_;
     $screen_name or return $self->done('args: id/screen_name');
 
-    $self->nt->create_friend($screen_name);
+    $self->nt->create_friend(+{screen_name => $screen_name});
     $self->done("now following $screen_name.");
 }
 
@@ -464,7 +507,7 @@ sub destroy_friend {
     $screen_name or return $self->done('args: id/screen_name');
     $self->confirm($screen_name) or $self->main_loop;
 
-    $self->nt->destroy_friend($screen_name);
+    $self->nt->destroy_friend(+{screen_name => $screen_name});
     $self->done("destroy friendship $screen_name.");
 }
 
@@ -479,8 +522,8 @@ sub rel_exists {
     my $bool2 = $res2->{relationship}->{source}->{following} == JSON::XS::true ? 1 : 0;
     my %rel = (0 => 'NOT ', 1 => '');
 
-    sayf '%s %sfollowing %s', $id1, $rel{$bool1}, $id2;
-    sayf '%s %sfollowing %s', $id2, $rel{$bool2}, $id1;
+    say '%s %sfollowing %s', $id1, $rel{$bool1}, $id2;
+    say '%s %sfollowing %s', $id2, $rel{$bool2}, $id1;
     $self->done;
 }
 
@@ -588,6 +631,7 @@ sub print_status {
             colored(["cyan"], "in reply to $status->{in_reply_to_screen_name}") : '';
 
         $status->{text} = $sf->filter($status->{text});
+        $status->{text} = $sf_expand_url->filter($status->{text}) if $self->config->{expand_url};
 
         my $t = parse_time($status->{created_at});
         my $num = sprintf '%2d', $i;
@@ -617,6 +661,7 @@ sub print_status {
 }
 
 sub ask_reaction {
+    my @caller = caller;
     my ($self, $statuses) = @_;
 
     if ($self->config->{show_react_menu}) {
@@ -688,8 +733,9 @@ sub ask_reaction {
     elsif ($c eq "T") {
         my $id = $status->{id};
         my $retweeters = $self->nt->retweeters($id);
-        for my $i (@$retweeters) {
-            say $i->{screen_name};
+        for my $i (@{$retweeters->{ids}}) {
+            my $user = $self->nt->show_user(+{id => $i});
+            say $user->{screen_name};
         }
     }
     elsif ($c eq "f") {
@@ -702,7 +748,7 @@ sub ask_reaction {
                 my $parent_status = $self->cache->get_or_set(
                     status_key($reply_id), sub {
                         $self->nt->show_status({id => $reply_id, include_entities => 1});
-                    }, 60 * 60
+                    }
                 );
 
                 $parent_status = $self->expand_entities($parent_status);
@@ -767,7 +813,7 @@ sub ask_reaction {
         $self->rel_exists($status->{user}{screen_name});
     }
     elsif ($c eq "u") {
-        sayf "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
+        say "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
     }
     elsif ($c eq "a") {
         my $id = $status->{id};
@@ -832,6 +878,8 @@ sub show_user {
         }
         else {
             $filterd{$key} = utf->encode($filterd{$key}) if $filterd{$key} and utf8::is_utf8($filterd{$key});
+            $filterd{$key} = $sf->filter($filterd{$key});
+            $filterd{$key} = $sf_expand_url->filter($filterd{$key}) if $self->config->{expand_url};
 
             my $key2 = sprintf "%-15s", $key;
             $user_info{body} .= "$key2 $filterd{$key}\n";
@@ -849,7 +897,7 @@ sub retweet {
     my $status = $self->cache->get_or_set(
         status_key($id), sub {
             $self->nt->show_status({id => $id, include_entities => 1});
-        }, 60
+        }
     );
     $self->print_status([$status]);
     $self->confirm("do official retweet ?") or return $self->done;
@@ -946,9 +994,9 @@ sub all_lists {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
-    my $lists = $self->nt->all_lists({screen_name => $screen_name});
+    my $lists = $self->nt->list_subscriptions({screen_name => $screen_name});
     for my $list (@$lists) {
-        sayf "- %s / %d", $list->{name}, $list->{id};
+        say "- %s / %d", $list->{name}, $list->{id};
     }
     return $self->done;
 }
@@ -1025,8 +1073,7 @@ sub favorited {
     #    if $self->_favs and $self->_favs->{$screen_name};
 
     my $favs;
-    my $furl = Furl->new;
-    my $xml = XMLin($furl->get("http://ja.favstar.fm/users/$screen_name/rss")->content);
+    my $xml = XMLin(furl->get("http://ja.favstar.fm/users/$screen_name/rss")->content);
 
     my $item = $xml->{channel}->{item} or $self->done("no favorited tweets.");
     for my $i (reverse @$item) {
