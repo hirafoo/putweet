@@ -44,7 +44,7 @@ sub ua { $ua }
 
 sub clear { system('clear') + 1 }
 
-sub say {
+sub sayf {
     my ($format, @list) = @_;
     if (@list) {
         printf "$format\n", @list;
@@ -64,14 +64,15 @@ sub p {
     print STDERR "  at $c[1]:$c[2]\n\n"
 }
 
-my @shorten_domains_ary = qw{
+my @shorten_domains_ary = qw/
     buff.ly
     bit.ly
     htn.to
     feedly.com
     nico.ms
     t.co
-};
+    p.tl
+/;
 my %shorten_domains;
 @shorten_domains{@shorten_domains_ary} = (1) x @shorten_domains_ary;
 
@@ -140,6 +141,8 @@ my %DAY_MAP = qw/
     Sun 日
 /;
 
+my $HISTORY_FILE = "$ENV{HOME}/.putweet_history";
+
 sub init {
     my ($self, @args) = @_;
 
@@ -153,6 +156,11 @@ sub init {
     my $user_list = pit_get('putweet_user_list');
     $self->user_list($user_list);
 
+    open my $fh, "<", $HISTORY_FILE;
+    for my $in (<$fh>) {
+        chomp $in;
+        $self->term->addhistory((split /;/, $in)[1]);
+    }
     $self->change_user;
     return $self;
 }
@@ -194,7 +202,7 @@ sub init_nt {
     my $c = pit_get('putweet');
     unless (%$c) {
         clear;
-        say "there is no putweet oauth info. input your application info to use as an alternative." and say;
+        sayf "there is no putweet oauth info. input your application info to use as an alternative." and sayf;
         my $consumer_key    = $self->term->readline('consumer_key :');
         my $consumer_secret = $self->term->readline('consumer_secret :');
         my $traits = [qw/API::Lists API::REST API::Search OAuth/];
@@ -205,7 +213,7 @@ sub init_nt {
         };
         my $nt = Net::Twitter::Lite::WithAPIv1_1->new(%$c);
 
-        say and say "go to the url, and input PIN you got.\n\n", $nt->get_authorization_url, "\n";
+        sayf "\ngo to the url, and input PIN you got.\n\n", $nt->get_authorization_url, "\n";
 
         my $pin = $self->term->readline('pin :');
         my ($access_token, $access_token_secret, $user_id, $screen_name) = $nt->request_access_token(verifier => $pin);
@@ -297,7 +305,7 @@ sub tl_types_array {
 
 sub say_menu {
     my ($self) = @_;
-    say sprintf $self->menu, "=" x width
+    sayf $self->menu, "=" x width
         if $self->config->{show_main_menu};
 }
 
@@ -320,9 +328,9 @@ sub init_statuses {
             $status = $self->expand_entities($status);
             $self->statuses->{$tl_name}->{$status->{id}} = $status;
         }
-        say "got $tl_name";
+        sayf "got $tl_name";
     }
-    say "update!";
+    sayf "update!";
     $self->last_updated->{basic}->{$self->user} = scalar localtime;
 }
 
@@ -354,19 +362,31 @@ sub main_loop {
 
     if (@args and my $func = $self->dispatch->{shift @args}) {
         eval { $self->$func(@args) };
-        say $@ if $@;
+        sayf $@ if $@;
     }
     else {
         $self->say_menu;
     }
-    my @in = split ' ', $self->term->readline('putweet ');
-    $self->main_loop(@in);
+    my $input = $self->term->readline('putweet ');
+    if ($input && (length $input != 1)) {
+        $self->record_history(+{input => $input});
+    }
+    $self->main_loop(split ' ', $input);
+}
+
+sub record_history {
+    my ($self, $args) = @_;
+    my $input = $args->{input};
+
+    (my $dt = localtime->datetime) =~ s/T/ /;
+    open my $fh, ">>", $HISTORY_FILE;
+    print $fh "$dt;$input\n";
 }
 
 sub done {
     my ($self, $message) = @_;
 
-    say $message || "";
+    sayf $message || "";
     my $done = $self->term->readline("done.");
     $self->main_loop;
 }
@@ -389,7 +409,7 @@ sub unblock_user {
 sub show_blocking {
     my $self = shift;
 
-    say $self->_blocking_users and return $self->done if $self->_blocking_users;
+    sayf $self->_blocking_users and return $self->done if $self->_blocking_users;
     my $bloking_users;
     my $users = $self->nt->blocking;
     for my $user (@$users) {
@@ -397,7 +417,7 @@ sub show_blocking {
         $bloking_users .= "$user_id $name\n";
     }
     $self->_blocking_users($bloking_users);
-    say $self->_blocking_users and return $self->done;
+    sayf $self->_blocking_users and return $self->done;
 }
 
 sub report_spam {
@@ -412,13 +432,13 @@ sub change_user {
     my ($self, $error) = @_;
     return $self->done("you can't do this.") unless $self->user_list;
 
-    clear and $error and say $error;
+    clear and $error and sayf $error;
 
     my $i = 1;
     for my $u (keys %{$self->user_list}) {
-        say $i++ . ": $u";
+        sayf $i++ . ": $u";
     }
-    say;
+    sayf;
     $i = $self->term->readline("which user?: ");
     $i =~ /^\d+$/ and $i-- or return $self->change_user("input error.");
     my @user_list = %{$self->user_list};
@@ -433,8 +453,9 @@ sub change_user {
     $self->$_(+{}) for qw/_followers _friends _list_memberships/;
     $self->last_updated->{basic}->{$self->user} = 0;
     $self->statuses->{$_} = {} for $self->tl_types_array;
-    say 'getting statuses...';
+    sayf 'getting statuses...';
     #$self->init_statuses;
+
     $self->done("user: $user");
 }
 
@@ -444,13 +465,13 @@ sub destroy_status {
 
     if (ref $args) {
         my @ids = @$args;
-        say '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{text}) for @ids;
+        sayf '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{text}) for @ids;
 
         $self->confirm("delete these ?") or $self->main_loop;
 
         for my $id (@ids) {
             $self->nt->destroy_status({id => $id});
-            say "destroy_status(%s)", utf->encode($self->statuses->{user_timeline}->{$self->user}->{$id}->{text});
+            sayf "destroy_status(%s)", utf->encode($self->statuses->{user_timeline}->{$self->user}->{$id}->{text});
             delete $self->statuses->{user_timeline}->{$self->user}->{$id};
         }
     }
@@ -522,8 +543,8 @@ sub rel_exists {
     my $bool2 = $res2->{relationship}->{source}->{following} == JSON::XS::true ? 1 : 0;
     my %rel = (0 => 'NOT ', 1 => '');
 
-    say '%s %sfollowing %s', $id1, $rel{$bool1}, $id2;
-    say '%s %sfollowing %s', $id2, $rel{$bool2}, $id1;
+    sayf '%s %sfollowing %s', $id1, $rel{$bool1}, $id2;
+    sayf '%s %sfollowing %s', $id2, $rel{$bool2}, $id1;
     $self->done;
 }
 
@@ -554,7 +575,7 @@ sub update {
     $args[0] or $self->done('args: status');
 
     unless ($self->config->{tweetable}) {
-        say "you are not tweetable." and return $self->done;
+        sayf "you are not tweetable." and return $self->done;
     }
     my $post_param;
     if ($args[0] =~ m/^\d+$/) {
@@ -564,14 +585,14 @@ sub update {
     my $status = join " ", @args;
     my $_status = utf->decode($status);
     if (140 < length $_status) {
-        say "status cut 140 chars.";
+        sayf "status cut 140 chars.";
         $status = substr($_status, 0, 140);
         $status = utf->encode($status);
     }
     $post_param->{status} = utf->decode($status);
-    say "status: $status";
-    say "length: ". length utf->decode($status);
-    say;
+    sayf "status: $status";
+    sayf "length: ". length utf->decode($status);
+    sayf;
 
     $self->nt->update($post_param) if $self->term->readline("ok? (y/n): ") eq 'y';
     $self->done;
@@ -647,17 +668,17 @@ sub print_status {
             $retweet_count = colored(["green"], "($retweet_count Retweeted)");
         }
 
-        say line("=");
-        say join " ", grep {$_}
+        sayf line("=");
+        sayf join " ", grep {$_}
             "[$num]", $t->ymd('/'), "($DAY_MAP{$t->day})", $t->hms,
             $_screen_name,
             $status->{id}, $source, $reply_to, $retweet_count;
-        say;
-        say decode_entities utf->encode($status->{text});
+        sayf;
+        sayf decode_entities utf->encode($status->{text});
 
         $i--;
     }
-    say line("=");
+    sayf line("=");
 }
 
 sub ask_reaction {
@@ -665,7 +686,7 @@ sub ask_reaction {
     my ($self, $statuses) = @_;
 
     if ($self->config->{show_react_menu}) {
-        say and say join "\n",
+        sayf and sayf join "\n",
             "-" x width,
             "  [number] : reply",
             " w[number] : show user's info",
@@ -687,10 +708,9 @@ sub ask_reaction {
             "-" x width;
     }
 
-    say;
+    sayf;
     my $in = $self->term->readline('input: ');
-    say;
-
+    sayf;
 
     my ($c, $n);
     $in =~ /^([a-zA-Z0-9])([\d,\-]+)$/;
@@ -710,13 +730,14 @@ sub ask_reaction {
     }
 
     if ($n and !$c) {
-        say "reply to: \@$status->{user}{screen_name}: " . utf->encode(decode_entities $status->{text});
+        sayf "reply to: \@$status->{user}{screen_name}: " . utf->encode(decode_entities $status->{text});
         my $text = $self->term->readline('@' . $status->{user}{screen_name} . ' ');
         $text = "\@$status->{user}{screen_name} $text";
         $self->update($status->{id}, $text);
     }
     elsif ($c eq "w") {
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
+        $self->record_history(+{input => "w $screen_name"});
         $self->show_user($screen_name);
     }
     elsif ($c eq "R") {
@@ -724,8 +745,8 @@ sub ask_reaction {
         $self->retweet($id);
     }
     elsif ($c eq "r" or $c eq "t") {
-        say $c eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
-        say "RT to: \@$status->{user}{screen_name}: " . utf->encode($status->{text});
+        sayf $c eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
+        sayf "RT to: \@$status->{user}{screen_name}: " . utf->encode($status->{text});
         my $text = $self->term->readline('str: ');
         $text = sprintf '%s RT @%s ', $text, utf->encode("$status->{user}{screen_name}: $status->{text}");
         $c eq 't' ? $self->update($text) : $self->update($status->{id}, $text);
@@ -735,13 +756,14 @@ sub ask_reaction {
         my $retweeters = $self->nt->retweeters($id);
         for my $i (@{$retweeters->{ids}}) {
             my $user = $self->nt->show_user(+{id => $i});
-            say $user->{screen_name};
+            sayf $user->{screen_name};
         }
     }
     elsif ($c eq "f") {
         clear;
         my $reply_id = $status->{in_reply_to_status_id};
         if ($reply_id) {
+            $self->record_history(+{input => sprintf('a %d # %s', $status->{id}, $status->{user}{screen_name})});
             print "getting tweets ";
             my @follow_statuses = ($status);
             while ($reply_id) {
@@ -753,15 +775,16 @@ sub ask_reaction {
 
                 $parent_status = $self->expand_entities($parent_status);
                 unshift @follow_statuses, $parent_status;
+                $self->record_history(+{input => sprintf('a %d # %s', $reply_id, $parent_status->{user}{screen_name})});
                 print ".";
                 $reply_id = $parent_status->{in_reply_to_status_id} or 0;
             }
-            say;
+            sayf;
             $self->print_status(\@follow_statuses);
             return $self->ask_reaction(\@follow_statuses);
         }
         else {
-            say "can not follow. there is no 'in_reply_to_status_id'";
+            sayf "can not follow. there is no 'in_reply_to_status_id'";
         }
     }
     elsif ($c eq "e") {
@@ -772,6 +795,7 @@ sub ask_reaction {
     }
     elsif ($c eq "s") {
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
+        $self->record_history(+{input => "s $screen_name"});
         $self->user_timeline($screen_name);
     }
     elsif ($c eq "n") {
@@ -813,7 +837,7 @@ sub ask_reaction {
         $self->rel_exists($status->{user}{screen_name});
     }
     elsif ($c eq "u") {
-        say "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
+        sayf "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
     }
     elsif ($c eq "a") {
         my $id = $status->{id};
@@ -826,8 +850,7 @@ sub ask_reaction {
 sub confirm {
     my ($self, @value) = @_;
     my $method = (split /::/, (caller 1)[3])[-1];
-    say "$method(@value)";
-    say;
+    sayf "$method(@value)\n";
     $self->term->readline("do ok? (y/n): ") eq 'y';
 }
 
@@ -885,7 +908,7 @@ sub show_user {
             $user_info{body} .= "$key2 $filterd{$key}\n";
         }
     }
-    say $user_info{body};
+    sayf $user_info{body};
     $self->_user_info(\%user_info) if $id eq $self->user;
     $self->done;
 }
@@ -909,24 +932,26 @@ sub followers {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
-    say $self->_followers->{$screen_name} and return $self->done if $self->_followers->{$screen_name};
+    sayf $self->_followers->{$screen_name} and return $self->done if $self->_followers->{$screen_name};
 
     my $followers;
     $followers .= "$_->{screen_name} " for @{$self->nt->followers({screen_name => $screen_name})->{users}};
     $self->_followers->{$screen_name} = $followers;
-    say $self->_followers->{$screen_name} and return $self->done;
+    sayf "$screen_name followers";
+    sayf $self->_followers->{$screen_name} and return $self->done;
 }
 
 sub friends {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
-    say $self->_friends->{$screen_name} and return $self->done if $self->_friends->{$screen_name};
+    sayf $self->_friends->{$screen_name} and return $self->done if $self->_friends->{$screen_name};
 
     my $friends;
     $friends .= "$_->{screen_name} " for @{$self->nt->friends({screen_name => $screen_name})->{users}};
     $self->_friends->{$screen_name} = $friends;
-    say $self->_friends->{$screen_name} and return $self->done;
+    sayf "$screen_name following";
+    sayf $self->_friends->{$screen_name} and return $self->done;
 }
 
 sub retweets_of_me {
@@ -966,7 +991,7 @@ sub retweeted_by_user {
 sub list_memberships {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
-    say $self->_list_memberships->{$screen_name} and return $self->done
+    sayf $self->_list_memberships->{$screen_name} and return $self->done
         if $self->_list_memberships->{$screen_name};
 
     my $lists = $self->nt->list_memberships({user => $screen_name, cursor => -1});
@@ -987,7 +1012,7 @@ sub list_memberships {
     $_list_memberships .= "list number: " . @list_memberships . "\n\n";
     $_list_memberships .= $_ for @list_memberships;
     $self->_list_memberships->{$screen_name} = ($_list_memberships);
-    say $self->_list_memberships->{$screen_name} and return $self->done;
+    sayf $self->_list_memberships->{$screen_name} and return $self->done;
 }
 
 sub all_lists {
@@ -996,7 +1021,7 @@ sub all_lists {
 
     my $lists = $self->nt->list_subscriptions({screen_name => $screen_name});
     for my $list (@$lists) {
-        say "- %s / %d", $list->{name}, $list->{id};
+        sayf "- %s / %d", $list->{name}, $list->{id};
     }
     return $self->done;
 }
@@ -1062,14 +1087,14 @@ sub favorites {
 
 sub help {
     my ($self, @args) = @_;
-    say "ソース嫁" and $self->done
+    sayf "ソース嫁" and $self->done
 }
 
 sub favorited {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
-    #say $self->_favs->{$screen_name} and $self->done
+    #sayf $self->_favs->{$screen_name} and $self->done
     #    if $self->_favs and $self->_favs->{$screen_name};
 
     my $favs;
@@ -1084,7 +1109,7 @@ sub favorited {
     my $_favs = $self->_favs;
     $_favs->{$screen_name} = $favs;
     $self->_favs($_favs);
-    say $self->_favs->{$screen_name} and $self->done;
+    sayf $self->_favs->{$screen_name} and $self->done;
 }
 
 sub change_config {
@@ -1092,7 +1117,7 @@ sub change_config {
 
     if ($item) {
         if (defined $value) {
-            say "$item -> $value";
+            sayf "$item -> $value";
             $self->config->{$item} = $value;
         }
         else {
@@ -1105,7 +1130,7 @@ sub change_config {
         $self->done('configed.');
     }
     else {
-        say "your config";
+        sayf "your config";
         p $self->config;
         $self->done;
     }
@@ -1113,7 +1138,7 @@ sub change_config {
 
 sub quit {
     my ($self, @args) = @_;
-    say "bye." and exit
+    sayf "bye." and exit
 }
 
 package main;
