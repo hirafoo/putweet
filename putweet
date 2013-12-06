@@ -376,11 +376,13 @@ sub main_loop {
 
 sub record_history {
     my ($self, $args) = @_;
-    my $input = $args->{input};
+    my $input = $args->{input} or return;
+    my @split = grep { $_ } split /\s+/, $input;
+    my $command = join " ", @split;
 
     (my $dt = localtime->datetime) =~ s/T/ /;
     open my $fh, ">>", $HISTORY_FILE;
-    print $fh "$dt;$input\n";
+    print $fh "$dt;$command\n";
 }
 
 sub done {
@@ -837,7 +839,11 @@ sub ask_reaction {
         $self->rel_exists($status->{user}{screen_name});
     }
     elsif ($c eq "u") {
-        sayf "http://twitter.com/%s/status/%s", ($status->{from_user} or $status->{user}{screen_name}), $status->{id};
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
+        my $url = sprintf "http://twitter.com/%s/status/%d", $screen_name, $status->{id};
+        sayf $url;
+        my $input = sprintf 'u %d # %s', $status->{id}, $screen_name;
+        $self->record_history(+{input => $input});
     }
     elsif ($c eq "a") {
         my $id = $status->{id};
