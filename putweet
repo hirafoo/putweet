@@ -499,9 +499,13 @@ sub show_status {
 
     my $status = $self->cache->get_or_set(
         status_key($id), sub {
-            $self->nt->show_status({id => $id, include_entities => 1});
+            eval { $self->nt->show_status({id => $id, include_entities => 1}); };
         }
     );
+    if ($@) {
+        sayf "can not get tweet id : %d", $id;
+        return;
+    }
     $status = $self->expand_entities($status);
     $self->print_status([$status]);
     $self->ask_reaction([$status]);
@@ -771,12 +775,17 @@ sub ask_reaction {
             while ($reply_id) {
                 my $parent_status = $self->cache->get_or_set(
                     status_key($reply_id), sub {
-                        $self->nt->show_status({id => $reply_id, include_entities => 1});
+                        eval { $self->nt->show_status({id => $reply_id, include_entities => 1}); };
                     }
                 );
 
+                if ($@) {
+                    sayf "\ncan not get tweet id : %d", $reply_id;
+                    last;
+                }
+
                 $parent_status = $self->expand_entities($parent_status);
-                unshift @follow_statuses, $parent_status;
+                push @follow_statuses, $parent_status;
                 $self->record_history(+{input => sprintf('a %d # %s', $reply_id, $parent_status->{user}{screen_name})});
                 print ".";
                 $reply_id = $parent_status->{in_reply_to_status_id} or 0;
