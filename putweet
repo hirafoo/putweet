@@ -213,22 +213,24 @@ sub init_nt {
         };
         my $nt = Net::Twitter::Lite::WithAPIv1_1->new(%$c);
 
-        sayf "\ngo to the url, and input PIN you got.\n\n", $nt->get_authorization_url, "\n";
+        sayf "\ngo to the url, and input PIN you got.\n\n%s\n", $nt->get_authorization_url;
 
         my $pin = $self->term->readline('pin :');
         my ($access_token, $access_token_secret, $user_id, $screen_name) = $nt->request_access_token(verifier => $pin);
-        my $putweet_user = {
-            $screen_name => {
+        my $putweet_user = [
+            +{
+                screen_name => $screen_name,
                 access_token => $access_token,
                 access_token_secret => $access_token_secret,
                 config => {
-                    tweetable => 1,
-                    show_main_menu => 1,
-                    show_react_menu => 1,
+                    expand_url         => 0,
+                    tweetable          => 1,
+                    show_main_menu     => 1,
+                    show_react_menu    => 1,
                     show_client_source => 0,
                 },
             },
-        };
+        ];
 
         pit_set("putweet", data => $c);
         pit_set("putweet_user_list", data => $putweet_user);
@@ -437,20 +439,20 @@ sub change_user {
     clear and $error and sayf $error;
 
     my $i = 1;
-    for my $u (keys %{$self->user_list}) {
-        sayf $i++ . ": $u";
+    for my $user (@{$self->user_list}) {
+        sayf '%d: %s', $i++, $user->{screen_name};
     }
     sayf;
     $i = $self->term->readline("which user?: ");
     $i =~ /^\d+$/ and $i-- or return $self->change_user("input error.");
-    my @user_list = %{$self->user_list};
-    my $user = $user_list[$i * 2];
+    my @screen_names = map {$_->{screen_name}} @{$self->user_list};
+    my $user = $screen_names[$i];
 
-    my $c_user = $self->user_list->{$user} or return $self->change_user("input error.");
-    $self->nt->access_token($c_user->{access_token});
-    $self->nt->access_token_secret($c_user->{access_token_secret});
+    my $current_user = $self->user_list->[$i] or return $self->change_user("input error.");
+    $self->nt->access_token($current_user->{access_token});
+    $self->nt->access_token_secret($current_user->{access_token_secret});
     $self->user($user);
-    $self->config($c_user->{config});
+    $self->config($current_user->{config});
     $self->$_(undef) for qw/_blocking_users _user_info _favs/;
     $self->$_(+{}) for qw/_followers _friends _list_memberships/;
     $self->last_updated->{basic}->{$self->user} = 0;
@@ -1139,8 +1141,14 @@ sub change_config {
             delete $self->config->{$item};
         }
 
-        my $user_list = pit_get('putweet_user_list');
-        $user_list->{$self->user}->{config} = $self->config;
+        my $user_list = $self->user_list;
+        my $i = 0;
+        while (1) {
+            if ($user_list->[$i++]->{screen_name} eq $self->user) {
+                last;
+            }
+        }
+        $user_list->[$i]->{config} = $self->config;
         pit_set("putweet_user_list", data => $user_list);
         $self->done('configed.');
     }
