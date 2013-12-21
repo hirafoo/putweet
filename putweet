@@ -624,10 +624,10 @@ sub user_timeline {
     $max_id ||= 0;
 
     my $statuses;
-    if ($self->passed(user_timeline => $screen_name)) {
+    if ($max_id or $self->passed(user_timeline => $screen_name)) {
         $statuses = $self->nt->user_timeline({
             screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
-            page => $page, ($max_id ? (max_id => $max_id) : ()),
+            ($page ? (page => $page) : ()), ($max_id ? (max_id => $max_id) : ()),
         });
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
@@ -712,6 +712,7 @@ sub ask_reaction {
             " x[number] : show relation between the user",
             " u[number] : show permalink the tweet",
             " a[number] : show the tweet",
+            " c[number] : show tweets older the one",
             "  [other]  : end",
             "-" x width;
     }
@@ -857,8 +858,10 @@ sub ask_reaction {
         $self->record_history(+{input => $input});
     }
     elsif ($c eq "a") {
-        my $id = $status->{id};
-        $self->show_status($id);
+        $self->show_status($status->{id});
+    }
+    elsif ($c eq "c") {
+        $self->user_timeline($status->{user}{screen_name}, 0, 0, ($status->{id} - 1));
     }
 
     $self->done;
