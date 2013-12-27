@@ -618,10 +618,10 @@ sub new_direct_message {
 
 sub user_timeline {
     my ($self, $screen_name, $count, $page, $max_id) = @_;
-    $screen_name or return $self->done('args: id/screen_name');
-    $count ||= $self->count;
-    $page  ||= 0;
-    $max_id ||= 0;
+    $screen_name ||= $self->user;
+    $count       ||= $self->count;
+    $page        ||= 0;
+    $max_id      ||= 0;
 
     my $statuses;
     if ($max_id or $self->passed(user_timeline => $screen_name)) {
