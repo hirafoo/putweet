@@ -617,13 +617,13 @@ sub new_direct_message {
 }
 
 sub user_timeline {
-    my ($self, $screen_name, $count, $page, $max_id) = @_;
+    my ($self, $screen_name, $count, $page, $max_id, $show_only_new) = @_;
     $screen_name ||= $self->user;
     $count       ||= $self->count;
     $page        ||= 0;
     $max_id      ||= 0;
 
-    my $statuses;
+    my ($statuses, %new_tweets);
     if ($max_id or $self->passed(user_timeline => $screen_name)) {
         $statuses = $self->nt->user_timeline({
             screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
@@ -632,10 +632,16 @@ sub user_timeline {
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
             $self->statuses->{user_timeline}->{$screen_name}->{$status->{id}} = $status;
+            $new_tweets{$status->{id}} = $status;
         }
         $self->last_updated->{user_timeline}->{$screen_name} = scalar localtime if @$statuses;
     }
-    $statuses = $self->statuses->{user_timeline}->{$screen_name};
+
+    if ($show_only_new) {
+        $statuses = \%new_tweets;
+    } else {
+        $statuses = $self->statuses->{user_timeline}->{$screen_name};
+    }
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
@@ -861,7 +867,7 @@ sub ask_reaction {
         $self->show_status($status->{id});
     }
     elsif ($c eq "c") {
-        $self->user_timeline($status->{user}{screen_name}, 0, 0, ($status->{id} - 1));
+        $self->user_timeline($status->{user}{screen_name}, 0, 0, ($status->{id} - 1), 1);
     }
 
     $self->done;
@@ -1118,7 +1124,9 @@ sub favorited {
     #    if $self->_favs and $self->_favs->{$screen_name};
 
     my $favs;
-    my $xml = XMLin(furl->get("http://ja.favstar.fm/users/$screen_name/rss")->content);
+    my $content = furl->get("http://ja.favstar.fm/users/$screen_name/rss")->content;
+    length $content == 1 and return $self->done('seems protected.');
+    my $xml = XMLin($content);
 
     my $item = $xml->{channel}->{item} or $self->done("no favorited tweets.");
     for my $i (reverse @$item) {
