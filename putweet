@@ -416,9 +416,9 @@ sub show_blocking {
     sayf $self->_blocking_users and return $self->done if $self->_blocking_users;
     my $bloking_users;
     my $users = $self->nt->blocking;
-    for my $user (@$users) {
-        my ($user_id, $name) = ((sprintf "%-9s", $user->{id}), $user->{screen_name});
-        $bloking_users .= "$user_id $name\n";
+    for my $user (@{$users->{users}}) {
+        my ($user_id, $screen_name, $name) = ($user->{id}, $user->{screen_name}, $user->{name});
+        $bloking_users .= sprintf "%-9s %s\t%s\n", $user_id, $screen_name, $name;
     }
     $self->_blocking_users($bloking_users);
     sayf $self->_blocking_users and return $self->done;
