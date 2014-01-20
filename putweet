@@ -858,7 +858,7 @@ sub ask_reaction {
     }
     elsif ($c eq "u") {
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
-        my $url = sprintf "http://twitter.com/%s/status/%d", $screen_name, $status->{id};
+        my $url = sprintf "https://twitter.com/%s/status/%d", $screen_name, $status->{id};
         sayf $url;
         my $input = sprintf 'u %d # %s', $status->{id}, $screen_name;
         $self->record_history(+{input => $input});
