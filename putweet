@@ -452,11 +452,12 @@ sub change_user {
     $self->nt->access_token($current_user->{access_token});
     $self->nt->access_token_secret($current_user->{access_token_secret});
     $self->user($user);
-    $self->config($current_user->{config});
+    $self->config(+{%{$current_user->{config}}});
     $self->$_(undef) for qw/_blocking_users _user_info _favs/;
     $self->$_(+{}) for qw/_followers _friends _list_memberships/;
     $self->last_updated->{basic}->{$self->user} = 0;
-    $self->statuses->{$_} = {} for $self->tl_types_array;
+    #$self->statuses->{$_} = +{} for $self->tl_types_array;
+    $self->clear_statuses; #when user change
     sayf 'getting statuses...';
     #$self->init_statuses;
 
@@ -509,6 +510,7 @@ sub show_status {
         return;
     }
     $status = $self->expand_entities($status);
+    $self->statuses->{user_timeline}->{$status->{user}{screen_name}}->{$id} = $status;
     $self->print_status([$status]);
     $self->ask_reaction([$status]);
 }
@@ -677,10 +679,7 @@ sub print_status {
             $_screen_name .= " (RT:$org_status->{user}{screen_name})";
             $status->{text} =~ s/^RT @.+?//;
         }
-        my $retweet_count = "";
-        if ($retweet_count = $status->{retweet_count}) {
-            $retweet_count = colored(["green"], "($retweet_count Retweeted)");
-        }
+        my $retweet_count = $status->{retweet_count} ? colored(["green"], "($status->{retweet_count} Retweeted)") : "";
 
         sayf line("=");
         sayf join " ", grep {$_}
