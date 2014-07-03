@@ -452,7 +452,8 @@ sub change_user {
     $self->nt->access_token($current_user->{access_token});
     $self->nt->access_token_secret($current_user->{access_token_secret});
     $self->user($user);
-    $self->config(+{%{$current_user->{config}}});
+    $self->config($current_user->{config});
+    #$self->config(+{%{$current_user->{config}}});
     $self->$_(undef) for qw/_blocking_users _user_info _favs/;
     $self->$_(+{}) for qw/_followers _friends _list_memberships/;
     $self->last_updated->{basic}->{$self->user} = 0;
@@ -674,6 +675,11 @@ sub print_status {
         my $num = sprintf '%2d', $i;
 
         my $_screen_name = ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user});
+        my $user_name = ($status->{user}{name} or $status->{sender}{name} or '');
+        $user_name and $user_name = utf->encode($user_name);
+        if ($_screen_name ne $user_name) {
+            $_screen_name = "$_screen_name($user_name)";
+        }
         if ($org_status) {
             $_screen_name = colored(["green"], $_screen_name);
             $_screen_name .= " (RT:$org_status->{user}{screen_name})";
@@ -685,7 +691,7 @@ sub print_status {
         sayf join " ", grep {$_}
             "[$num]", $t->ymd('/'), "($DAY_MAP{$t->day})", $t->hms,
             $_screen_name,
-            $status->{id}, $source, $reply_to, $retweet_count;
+            $source, $reply_to, $retweet_count;
         sayf;
         sayf decode_entities utf->encode($status->{text});
 
@@ -859,7 +865,7 @@ sub ask_reaction {
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
         my $url = sprintf "https://twitter.com/%s/status/%d", $screen_name, $status->{id};
         sayf $url;
-        my $input = sprintf 'u %d # %s', $status->{id}, $screen_name;
+        my $input = sprintf 'a %d # %s', $status->{id}, $screen_name;
         $self->record_history(+{input => $input});
     }
     elsif ($c eq "a") {
@@ -1081,7 +1087,7 @@ sub search {
     my ($self, @words) = @_;
     @words or return $self->done('args: word[s]');
 
-    my $word = join " ", @words;
+    my $word = join " ", @words, "exclude:retweets";
     $word = utf->decode($word);
     my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1})->{statuses};
     for my $status (@$statuses) {
