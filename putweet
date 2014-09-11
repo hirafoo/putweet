@@ -2,6 +2,29 @@
 use strict;
 use warnings;
 
+package Putweet::Cache;
+use parent qw/Cache::Memcached::Fast/;
+
+sub new {
+    my ($class, $args) = @_;
+    my $self = $class->SUPER::new(+{
+        servers => [qw/127.0.0.1:11211/],
+    });
+    return $self;
+}
+
+sub get_or_set {
+    my ($self, $key, $sub, $expire) = @_;
+    $expire ||= 0;
+
+    my $value = $self->get($key);
+    unless (defined $value) {
+        $value = $sub->();
+        $self->set($key => $value, $expire);
+    }
+    return $value;
+}
+
 package Putweet;
 use Class::Accessor::Lite (
     new => 1,
@@ -18,7 +41,7 @@ use Encode qw/find_encoding/;
 use Furl;
 use HTML::Entities qw/decode_entities/;
 use JSON::XS ();
-#use Net::Twitter;
+use Net::Twitter;
 use Net::Twitter::Lite::WithAPIv1_1;
 use String::Filter;
 use Term::ANSIColor qw/colored/;
@@ -166,7 +189,8 @@ sub init {
 }
 sub init_accessor {
     my ($self, $data) = @_;
-    $self->cache(Cache::Memory::Simple->new);
+    #$self->cache(Cache::Memory::Simple->new);
+    $self->cache(Putweet::Cache->new);
     $self->config(+{});
     $self->dispatch(+{});
     $self->statuses(+{});
@@ -248,6 +272,7 @@ sub init_nt {
         #return $self->nt(Net::Twitter::Lite::WithAPIv1_1->new(%c));
     }
     $self->nt(Net::Twitter::Lite::WithAPIv1_1->new(%$c));
+    $self->nt(Net::Twitter->new($c));
 }
 
 sub fix_source {
@@ -657,6 +682,7 @@ sub print_status {
     my $i = @$statuses;
     for my $status (@$statuses) {
         my $org_status;
+        my $verified = $status->{user}{verified} ? sprintf '(%s)', colored(["bright_magenta"], 'verified') : '';
         if ($status->{retweeted_status}) {
             $org_status = clone $status;
             $org_status = $self->expand_entities($org_status);
@@ -678,22 +704,26 @@ sub print_status {
         my $user_name = ($status->{user}{name} or $status->{sender}{name} or '');
         $user_name and $user_name = utf->encode($user_name);
         if ($_screen_name ne $user_name) {
-            $_screen_name = "$_screen_name($user_name)";
+            $_screen_name = "$_screen_name/$user_name";
         }
         if ($org_status) {
             $_screen_name = colored(["green"], $_screen_name);
+            my $_verified = $status->{user}{verified} ? sprintf '(%s)', colored(["bright_magenta"], 'verified') : '';
+            $_screen_name .= $_verified;
             $_screen_name .= " (RT:$org_status->{user}{screen_name})";
             $status->{text} =~ s/^RT @.+?//;
+            $verified = $org_status->{user}{verified} ? sprintf '(%s)', colored(["bright_magenta"], 'verified') : '';
         }
+        $_screen_name .= $verified;
         my $retweet_count = $status->{retweet_count} ? colored(["green"], "($status->{retweet_count} Retweeted)") : "";
 
-        sayf line("=");
-        sayf join " ", grep {$_}
+        my $output = join " ", grep {$_}
             "[$num]", $t->ymd('/'), "($DAY_MAP{$t->day})", $t->hms,
             $_screen_name,
             $source, $reply_to, $retweet_count;
-        sayf;
-        sayf decode_entities utf->encode($status->{text});
+        $output =~ s/\r?\n//g;
+
+        sayf '%s%s%s%s%s', line("="), "\n", $output, "\n\n", decode_entities utf->encode($status->{text});
 
         $i--;
     }
@@ -738,6 +768,7 @@ sub ask_reaction {
     $n = $2 || "";
 
     if ($in =~ /^(\d+)$/) {
+        $c = '';
         $n = $1;
     }
 
@@ -773,8 +804,8 @@ sub ask_reaction {
     }
     elsif ($c eq "T") {
         my $id = $status->{id};
-        my $retweeters = $self->nt->retweeters($id);
-        for my $i (@{$retweeters->{ids}}) {
+        my $retweeters_ids = $self->nt->retweeters_ids($id);
+        for my $i (@{$retweeters_ids->{ids}}) {
             my $user = $self->nt->show_user(+{id => $i});
             sayf $user->{screen_name};
         }
@@ -891,7 +922,8 @@ sub show_user {
     #say $self->_user_info->{body} and return $self->done
     #if $self->_user_info and $self->_user_info->{id} eq $id;
 
-    my %res = %{$self->nt->show_user(+{screen_name => $id})};
+    my $key = $id =~ /^\d+$/ ? "id" : "screen_name";
+    my %res = %{$self->nt->show_user(+{$key => $id})};
     my %filterd;
     my @want = qw/id name screen_name lang url description location time_zone
                   statuses_count created_at friends_count followers_count protected verified listed_count/;
@@ -1050,7 +1082,7 @@ sub all_lists {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
 
-    my $lists = $self->nt->list_subscriptions({screen_name => $screen_name});
+    my $lists = $self->nt->get_lists({screen_name => $screen_name});
     for my $list (@$lists) {
         sayf "- %s / %d", $list->{name}, $list->{id};
     }
