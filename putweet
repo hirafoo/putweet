@@ -1119,7 +1119,7 @@ sub search {
     my ($self, @words) = @_;
     @words or return $self->done('args: word[s]');
 
-    my $word = join " ", @words, "exclude:retweets";
+    my $word = join " ", @words, "exclude:retweets", "-source:twittbot.net";
     $word = utf->decode($word);
     my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1})->{statuses};
     for my $status (@$statuses) {
