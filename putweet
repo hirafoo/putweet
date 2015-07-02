@@ -9,6 +9,7 @@ sub new {
     my ($class, $args) = @_;
     my $self = $class->SUPER::new(+{
         servers => [qw/127.0.0.1:11211/],
+        namespace => 'putweet'
     });
     return $self;
 }
@@ -372,6 +373,7 @@ sub clear_statuses {
     my ($self) = @_;
 
     $self->$_(+{}) for qw/statuses last_updated/;
+    #$self->cache->flush_all;
     $self->done("clear !");
 }
 
@@ -688,6 +690,8 @@ sub print_status {
             $org_status = $self->expand_entities($org_status);
             $status = clone $status->{retweeted_status};
             $status = $self->expand_entities($status);
+            delete $org_status->{retweeted_status};
+            $status->{org_status} = $org_status;
         }
         my ($source, $source_url) = $self->fix_source($status->{source});
 
@@ -771,7 +775,6 @@ sub ask_reaction {
         $c = '';
         $n = $1;
     }
-
     my $status;
 
     if ($n =~ /^\d+$/) {
@@ -902,8 +905,11 @@ sub ask_reaction {
     elsif ($c eq "a") {
         $self->show_status($status->{id});
     }
-    elsif ($c eq "c") {
-        $self->user_timeline($status->{user}{screen_name}, 0, 0, ($status->{id} - 1), 1);
+    elsif ($in eq "c") {
+        $status = $statuses->[0];
+        my $target = $status->{org_status} || $status;
+
+        $self->user_timeline($target->{user}{screen_name}, 0, 0, ($target->{id} - 1), 1);
     }
 
     $self->done;
@@ -1118,8 +1124,26 @@ sub list_statuses {
 sub search {
     my ($self, @words) = @_;
     @words or return $self->done('args: word[s]');
+    @words = map { s/　/ /g; /^-/ ? $_ : qq{"$_"}; } @words;
 
-    my $word = join " ", @words, "exclude:retweets", "-source:twittbot.net";
+    my @ng_words = do {
+        my $ng_words = "$ENV{HOME}/.putweet_ng_words";
+        my @w;
+
+        if (open my $fh_ng, "<", $ng_words) {
+            for my $i (<$fh_ng>) {
+                chomp $i;
+                if ($i =~ /^exclude:/) {
+                    push @w, "$i";
+                } else {
+                    push @w, "-$i";
+                }
+            }
+        }
+
+        @w;
+    };
+    my $word = join " ", @words, @ng_words;
     $word = utf->decode($word);
     my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1})->{statuses};
     for my $status (@$statuses) {
