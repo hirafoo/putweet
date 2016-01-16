@@ -707,14 +707,14 @@ sub print_status {
         my $_screen_name = ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user});
         my $user_name = ($status->{user}{name} or $status->{sender}{name} or '');
         $user_name and $user_name = utf->encode($user_name);
-        if ($_screen_name ne $user_name) {
-            $_screen_name = "$_screen_name/$user_name";
-        }
+        $_screen_name = sprintf '%s %s', $user_name, $_screen_name = colored(["cyan"], '@'.$_screen_name);
         if ($org_status) {
-            $_screen_name = colored(["green"], $_screen_name);
+            #$_screen_name = colored(["green"], $_screen_name);
             my $_verified = $status->{user}{verified} ? sprintf '(%s)', colored(["bright_magenta"], 'verified') : '';
             $_screen_name .= $_verified;
-            $_screen_name .= " (RT:$org_status->{user}{screen_name})";
+            my $rt = colored(["green"], "RT");
+            my $org_screen_name = colored(["cyan"], '@'.$org_status->{user}{screen_name});
+            $_screen_name .= " ($rt:$org_screen_name)";
             $status->{text} =~ s/^RT @.+?//;
             $verified = $org_status->{user}{verified} ? sprintf '(%s)', colored(["bright_magenta"], 'verified') : '';
         }
