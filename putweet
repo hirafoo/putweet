@@ -53,6 +53,12 @@ use LWP::UserAgent;
 use YAML::Syck qw/Load/;
 use XML::Simple qw/XMLin/;
 
+{
+    package Data::Dumper;
+    no warnings 'redefine';
+    sub quote { return shift; }
+}
+
 $| = 1;
 $XML::Simple::PREFERRED_PARSER = "XML::Parser";
 $YAML::Syck::ImplicitUnicode = 1;
@@ -82,6 +88,8 @@ sub p {
     #local $Data::Dumper::Indent   = 1;
     local $Data::Dumper::Sortkeys = 1;
     local $Data::Dumper::Terse    = 1;
+    local $Data::Dumper::Useperl = 1;
+
     warn Dumper \@_;
     $ENV{PT_DEBUG} or return;
     my @c = caller;
@@ -352,7 +360,12 @@ sub init_statuses {
         };
         my $statuses = $self->nt->$tl_name($opt);
         for my $status (@$statuses) {
+            my ($source, $source_url) = $self->fix_source($status->{source});
+            $source =~ m/^via twittbot\.net$/ and next; # spam
+            $status->{_source} = $source;
+            $status->{_source_url} = $source_url;
             $status->{id} or next;# sometimes api return blank data
+            #$status->{user}->{screen_name} eq "spam" and next;
             $status = $self->expand_entities($status);
             $self->statuses->{$tl_name}->{$status->{id}} = $status;
         }
@@ -533,6 +546,7 @@ sub show_status {
             eval { $self->nt->show_status({id => $id, include_entities => 1}); };
         }
     );
+
     if ($@) {
         sayf "can not get tweet id : %d", $id;
         return;
@@ -693,7 +707,7 @@ sub print_status {
             delete $org_status->{retweeted_status};
             $status->{org_status} = $org_status;
         }
-        my ($source, $source_url) = $self->fix_source($status->{source});
+        my ($source, $source_url) = ($status->{_source}, $status->{_source_url});
 
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
             colored(["cyan"], "in reply to $status->{in_reply_to_screen_name}") : '';
