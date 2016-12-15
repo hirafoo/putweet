@@ -362,10 +362,8 @@ sub init_statuses {
         for my $status (@$statuses) {
             my ($source, $source_url) = $self->fix_source($status->{source});
             $source =~ m/^via twittbot\.net$/ and next; # spam
-            $status->{_source} = $source;
-            $status->{_source_url} = $source_url;
             $status->{id} or next;# sometimes api return blank data
-            #$status->{user}->{screen_name} eq "spam" and next;
+            #$status->{user}->{screen_name} eq "span" and next;
             $status = $self->expand_entities($status);
             $self->statuses->{$tl_name}->{$status->{id}} = $status;
         }
@@ -707,7 +705,7 @@ sub print_status {
             delete $org_status->{retweeted_status};
             $status->{org_status} = $org_status;
         }
-        my ($source, $source_url) = ($status->{_source}, $status->{_source_url});
+        my ($source, $source_url) = $self->fix_source($status->{source});
 
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
             colored(["cyan"], "in reply to $status->{in_reply_to_screen_name}") : '';
