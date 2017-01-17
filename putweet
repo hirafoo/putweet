@@ -1140,7 +1140,11 @@ sub search {
 
     my @ng_words = do {
         my $ng_words = "$ENV{HOME}/.putweet_ng_words";
-        my @w;
+        my @spam = (
+            "-source:twittbot.net",
+            "-source:twiroboJP",
+        );
+        my @w = @spam;
 
         if (open my $fh_ng, "<", $ng_words) {
             for my $i (<$fh_ng>) {
@@ -1171,9 +1175,8 @@ sub favorites {
 
     my $statuses;
     if ($screen_name) {
-        $statuses = $self->nt->favorites({id => $screen_name});
-    }
-    else {
+        $statuses = $self->nt->favorites({screen_name => $screen_name});
+    } else {
         $screen_name = $self->user;
         $self->update_statuses;
         $statuses = $self->statuses->{favorites};
