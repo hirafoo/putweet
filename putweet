@@ -1144,7 +1144,10 @@ sub search {
             "-source:twittbot.net",
             "-source:twiroboJP",
         );
-        my @w = @spam;
+        my @w = (
+            "exclude:retweets",
+            @spam,
+        );
 
         if (open my $fh_ng, "<", $ng_words) {
             for my $i (<$fh_ng>) {
