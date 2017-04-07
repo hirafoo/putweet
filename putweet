@@ -1170,6 +1170,29 @@ sub search {
     $self->done;
 }
 
+sub saved_searches_list {
+    my ($self, ) = @_;
+    my $saved = $self->cache->get_or_set(
+        saved_searches => sub { $self->nt->saved_searches }, 60*60
+    );
+    for (my $i=0; $i<@$saved; $i++) {
+        my $datum = $saved->[$i];
+        sayf "%d: %s", $i, utf->encode($datum->{name});
+        sayf line("=");
+    }
+    my $input = $self->term->readline('search num ? ');
+    length $input or return $self->done;
+    if (my $datum = $saved->[$input]) {
+        my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1})->{statuses};
+        for my $status (@$statuses) {
+            $status = $self->expand_entities($status);
+        }
+        $self->print_status($statuses, 1);
+        $self->ask_reaction($statuses);
+    }
+    $self->done;
+}
+
 sub favorites {
     my ($self, $screen_name) = @_;
 
@@ -1397,6 +1420,11 @@ menu:
         - search
         - word
         - search from tweets
+      -
+        - V
+        - saved_searches_list
+        - none
+        - show saved_searches/list
     -
       -
         - c
