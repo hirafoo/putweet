@@ -9,7 +9,7 @@ sub new {
     my ($class, $args) = @_;
     my $self = $class->SUPER::new(+{
         servers => [qw/127.0.0.1:11211/],
-        namespace => 'putweet'
+        namespace => 'putweet:',
     });
     return $self;
 }
@@ -1140,10 +1140,7 @@ sub search {
 
     my @ng_words = do {
         my $ng_words = "$ENV{HOME}/.putweet_ng_words";
-        my @spam = (
-            "-source:twittbot.net",
-            "-source:twiroboJP",
-        );
+        my @spam = map {qq{-source:$_}} qw/twittbot.net twiroboJP autotweety.net/; # max 3? want to add 'Tweet Old Post'
         my @w = (
             "exclude:retweets",
             @spam,
@@ -1188,11 +1185,6 @@ sub favorites {
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
     $self->done;
-}
-
-sub help {
-    my ($self, @args) = @_;
-    sayf "ソース嫁" and $self->done
 }
 
 sub favorited {
@@ -1415,11 +1407,6 @@ menu:
         - C
         - change_config
         - item/value
-        - ~
-      -
-        - h
-        - help
-        - none
         - ~
       -
         - l
