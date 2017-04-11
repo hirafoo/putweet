@@ -19,9 +19,11 @@ sub get_or_set {
     $expire ||= 0;
 
     my $value = $self->get($key);
-    unless (defined $value) {
+    if (not defined $value) {
         $value = $sub->();
-        $self->set($key => $value, $expire);
+        if (defined $value) {
+            $self->set($key => $value, $expire);
+        }
     }
     return $value;
 }
@@ -38,7 +40,7 @@ use Cache::Memory::Simple;
 use Config::Pit qw/pit_get pit_set/;
 use Clone qw/clone/;
 use Data::Dumper qw/Dumper/;
-use Encode qw/find_encoding/;
+use Encode qw/find_encoding is_utf8/;
 use Furl;
 use HTML::Entities qw/decode_entities/;
 use JSON::XS ();
@@ -294,7 +296,7 @@ sub fix_source {
         $source =~ m{<.*?href="(.*?)".*?>(.+)</a>} and $source_url = $1 and $source = $2;
         $source_url and $self->config->{show_client_source} and $source .= " $source_url";
         $source = "via $source";
-        $source = utf->encode($source) if utf8::is_utf8($source);
+        $source = utf->encode($source) if is_utf8($source);
     }
     return ($source, $source_url);
 }
@@ -456,6 +458,7 @@ sub show_blocking {
     my $users = $self->nt->blocking;
     for my $user (@{$users->{users}}) {
         my ($user_id, $screen_name, $name) = ($user->{id}, $user->{screen_name}, $user->{name});
+        $name = utf->encode($name) if is_utf8($name);
         $bloking_users .= sprintf "%-9s %s\t%s\n", $user_id, $screen_name, $name;
     }
     $self->_blocking_users($bloking_users);
@@ -535,20 +538,28 @@ sub destroy_status {
     $self->done;
 }
 
-sub show_status {
-    my ($self, $id) = @_;
-    $id or return $self->done('args: status id');
+sub _show_status {
+    my ($self, $status_id) = @_;
 
     my $status = $self->cache->get_or_set(
-        status_key($id), sub {
-            eval { $self->nt->show_status({id => $id, include_entities => 1}); };
+        status_key($status_id), sub {
+            eval { $self->nt->show_status({id => $status_id, include_entities => 1}); };
         }
     );
 
     if ($@) {
-        sayf "can not get tweet id : %d", $id;
+        sayf "can not get tweet id=%d", $status_id;
         return;
+    } else {
+        return $status;
     }
+}
+
+sub show_status {
+    my ($self, $id) = @_;
+    $id or return $self->done('args: status id');
+
+    my $status = $self->_show_status($id) or return;
     $status = $self->expand_entities($status);
     $self->statuses->{user_timeline}->{$status->{user}{screen_name}}->{$id} = $status;
     $self->print_status([$status]);
@@ -732,11 +743,12 @@ sub print_status {
         }
         $_screen_name .= $verified;
         my $retweet_count = $status->{retweet_count} ? colored(["green"], "($status->{retweet_count} Retweeted)") : "";
+        my $favorite_count = $status->{favorite_count} ? colored(["red"], "($status->{favorite_count} Favs)") : "";
 
         my $output = join " ", grep {$_}
             "[$num]", $t->ymd('/'), "($DAY_MAP{$t->day})", $t->hms,
             $_screen_name,
-            $source, $reply_to, $retweet_count;
+            $source, $reply_to, $retweet_count, $favorite_count;
         $output =~ s/\r?\n//g;
 
         sayf '%s%s%s%s%s', line("="), "\n", $output, "\n\n", decode_entities utf->encode($status->{text});
@@ -833,17 +845,7 @@ sub ask_reaction {
             print "getting tweets ";
             my @follow_statuses = ($status);
             while ($reply_id) {
-                my $parent_status = $self->cache->get_or_set(
-                    status_key($reply_id), sub {
-                        eval { $self->nt->show_status({id => $reply_id, include_entities => 1}); };
-                    }
-                );
-
-                if ($@) {
-                    sayf "\ncan not get tweet id : %d", $reply_id;
-                    last;
-                }
-
+                my $parent_status = $self->_show_status($reply_id) or last;
                 $parent_status = $self->expand_entities($parent_status);
                 push @follow_statuses, $parent_status;
                 $self->record_history(+{input => sprintf('a %d # %s', $reply_id, $parent_status->{user}{screen_name})});
@@ -970,18 +972,18 @@ sub show_user {
             no warnings;
             my $rest = substr $filterd{$key}, 0, $s2;
             $filterd{$key} = substr $filterd{$key}, $s2;
-            $rest = utf->encode($rest) if utf8::is_utf8($rest);
+            $rest = utf->encode($rest) if is_utf8($rest);
             my $key2 = sprintf "%-15s", $key;
             $user_info{body} .= "$key2 $rest\n";
             while ($filterd{$key}) {
                 $rest = substr $filterd{$key}, 0, $s1;
                 $filterd{$key} = substr $filterd{$key}, $s1;
-                $rest = utf->encode($rest) if utf8::is_utf8($rest);
+                $rest = utf->encode($rest) if is_utf8($rest);
                 $user_info{body} .= " " x 16 . "$rest\n";
             }
         }
         else {
-            $filterd{$key} = utf->encode($filterd{$key}) if $filterd{$key} and utf8::is_utf8($filterd{$key});
+            $filterd{$key} = utf->encode($filterd{$key}) if $filterd{$key} and is_utf8($filterd{$key});
             $filterd{$key} = $sf->filter($filterd{$key});
             $filterd{$key} = $sf_expand_url->filter($filterd{$key}) if $self->config->{expand_url};
 
@@ -1082,8 +1084,8 @@ sub list_memberships {
     do {
         for my $list (@{$lists->{lists}}) {
             my $str = $list->{description} || '';
-            $str = utf->encode($str) if utf8::is_utf8($str);
-            $list->{full_name} = utf->encode($list->{full_name}) if utf8::is_utf8($list->{full_name});
+            $str = utf->encode($str) if is_utf8($str);
+            $list->{full_name} = utf->encode($list->{full_name}) if is_utf8($list->{full_name});
             push @list_memberships, "$list->{full_name} :$str\n";
         }
         my $lists_next = $self->nt->list_memberships({user => $screen_name, cursor => $lists->{next_cursor}});
@@ -1183,6 +1185,7 @@ sub saved_searches_list {
     my $input = $self->term->readline('search num ? ');
     length $input or return $self->done;
     if (my $datum = $saved->[$input]) {
+        $self->record_history(+{input => "z " . utf->encode($datum->{query})});
         my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1})->{statuses};
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
