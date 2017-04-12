@@ -777,7 +777,6 @@ sub ask_reaction {
             " n[number] : report for spam",
             " b[number] : block user",
             " d[number] : delete your status",
-            " v[number] : show user's favorited",
             " x[number] : show relation between the user",
             " u[number] : show permalink the tweet",
             " a[number] : show the tweet",
@@ -901,10 +900,6 @@ sub ask_reaction {
     elsif ($c eq "b") {
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
         $self->block_user($screen_name);
-    }
-    elsif ($c eq "v") {
-        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
-        $self->favorited($screen_name);
     }
     elsif ($c eq "x") {
         $self->rel_exists($status->{user}{screen_name});
@@ -1213,6 +1208,7 @@ sub favorites {
     $self->done;
 }
 
+# OBSOLETE
 sub favorited {
     my ($self, $screen_name) = @_;
     $screen_name ||= $self->user;
@@ -1424,7 +1420,7 @@ menu:
         - word
         - search from tweets
       -
-        - V
+        - v
         - saved_searches_list
         - none
         - show saved_searches/list
@@ -1444,11 +1440,6 @@ menu:
         - clear_statuses
         - none
         - clear statuses cache
-      -
-        - v
-        - favorited
-        - screen_name?
-        - show your favorited statuses
       -
         - q
         - quit
