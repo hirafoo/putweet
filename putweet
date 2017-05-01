@@ -195,7 +195,10 @@ sub init {
         chomp $in;
         $self->term->addhistory((split /;/, $in)[1]);
     }
-    $self->change_user;
+
+    while (!$self->user) {
+        $self->change_user;
+    }
     return $self;
 }
 sub init_accessor {
@@ -341,10 +344,9 @@ sub tl_types_array {
     @{$self->tl_types}
 }
 
-sub say_menu {
+sub show_menu {
     my ($self) = @_;
-    sayf $self->menu, "=" x width
-        if $self->config->{show_main_menu};
+    sayf $self->menu, "=" x width;
 }
 
 sub init_statuses {
@@ -386,34 +388,35 @@ sub clear_statuses {
     my ($self) = @_;
 
     $self->$_(+{}) for qw/statuses last_updated/;
-    #$self->cache->flush_all;
+    $self->cache->flush_all;
     $self->done("clear !");
 }
 
 sub run {
-    my ($self, ) = @_;
-    $self->main_loop;
-}
+    my ($self) = @_;
 
-sub main_loop {
-    my ($self, @args) = @_;
-    $self->last_updated->{basic}->{$self->user} ||= ((scalar localtime) - 60 * 10);
+    while(1) {
+        $self->last_updated->{basic}->{$self->user} ||= ((scalar localtime) - 60 * 10);
+        clear;
+        sayf "login as: %s  last update: %s\n", $self->user, $self->last_updated->{basic}->{$self->user}->hms;
+        $self->config->{show_main_menu} and $self->show_menu;
 
-    clear;
-    printf "login as: %s  last update: %s\n\n", $self->user, $self->last_updated->{basic}->{$self->user}->hms;
+        if (defined(my $input = $self->term->readline('putweet: '))) {
+            my @args = split / /, $input;
 
-    if (@args and my $func = $self->dispatch->{shift @args}) {
-        eval { $self->$func(@args) };
-        sayf $@ if $@;
+            if (@args and my $func = $self->dispatch->{shift @args}) {
+                if (length $input > 1) {
+                    $self->record_history(+{input => $input});
+                }
+
+                eval { $self->$func(@args) };
+                if ($@) {
+                    sayf $@;
+                    $self->done("error.");
+                }
+            }
+        }
     }
-    else {
-        $self->say_menu;
-    }
-    my $input = $self->term->readline('putweet ');
-    if ($input && (length $input != 1)) {
-        $self->record_history(+{input => $input});
-    }
-    $self->main_loop(split ' ', $input);
 }
 
 sub record_history {
@@ -431,14 +434,13 @@ sub done {
     my ($self, $message) = @_;
 
     sayf $message || "";
-    my $done = $self->term->readline("done.");
-    $self->main_loop;
+    $self->term->readline("done.");
 }
 
 sub block_user {
     my ($self, $screen_name) = @_;
     return $self->done("args: user_id/screen_name.") unless $screen_name;
-    $self->confirm($screen_name) or $self->main_loop;
+    $self->confirm($screen_name) or return;
     $self->nt->create_block($screen_name);
     $self->done("block: $screen_name");
 }
@@ -468,7 +470,7 @@ sub show_blocking {
 sub report_spam {
     my ($self, $screen_name) = @_;
     return $self->done("args: id/screen_name") unless $screen_name;
-    $self->confirm($screen_name) or $self->main_loop;
+    $self->confirm($screen_name) or return;
     $self->nt->report_spam($screen_name);
     $self->done("report spam and block: $screen_name");
 }
@@ -485,11 +487,11 @@ sub change_user {
     }
     sayf;
     $i = $self->term->readline("which user?: ");
-    $i =~ /^\d+$/ and $i-- or return $self->change_user("input error.");
+    $i =~ /^\d+$/ and $i-- or return $self->done("input error.");
     my @screen_names = map {$_->{screen_name}} @{$self->user_list};
     my $user = $screen_names[$i];
 
-    my $current_user = $self->user_list->[$i] or return $self->change_user("input error.");
+    my $current_user = $self->user_list->[$i] or return $self->done("input error.");
     $self->nt->access_token($current_user->{access_token});
     $self->nt->access_token_secret($current_user->{access_token_secret});
     $self->user($user);
@@ -514,7 +516,7 @@ sub destroy_status {
         my @ids = @$args;
         sayf '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{text}) for @ids;
 
-        $self->confirm("delete these ?") or $self->main_loop;
+        $self->confirm("delete these ?") or return;
 
         for my $id (@ids) {
             $self->nt->destroy_status({id => $id});
@@ -527,7 +529,7 @@ sub destroy_status {
         my $status = $self->statuses->{user_timeline}->{$self->user}->{$id};
         $status->{user}{screen_name} eq $self->user or return $self->done("the status is not yours");
 
-        $self->confirm(utf->encode($status->{text})) or $self->main_loop;
+        $self->confirm(utf->encode($status->{text})) or return;
 
         $self->nt->destroy_status({id => $id});
         delete $self->statuses->{user_timeline}->{$self->user}->{$id};
@@ -587,7 +589,7 @@ sub create_friend {
 sub destroy_friend {
     my ($self, $screen_name) = @_;
     $screen_name or return $self->done('args: id/screen_name');
-    $self->confirm($screen_name) or $self->main_loop;
+    $self->confirm($screen_name) or return;
 
     $self->nt->destroy_friend(+{screen_name => $screen_name});
     $self->done("destroy friendship $screen_name.");
@@ -789,6 +791,10 @@ sub ask_reaction {
     my $in = $self->term->readline('input: ');
     sayf;
 
+    if (!$in) {
+        return $self->done;
+    }
+
     my ($c, $n);
     $in =~ /^([a-zA-Z0-9])([\d,\-]+)$/;
     $c = $1 || "";
@@ -920,8 +926,6 @@ sub ask_reaction {
 
         $self->user_timeline($target->{user}{screen_name}, 0, 0, ($target->{id} - 1), 1);
     }
-
-    $self->done;
 }
 
 sub confirm {
@@ -1164,7 +1168,6 @@ sub search {
     }
     $self->print_status($statuses, 1);
     $self->ask_reaction($statuses);
-    $self->done;
 }
 
 sub saved_searches_list {
@@ -1180,15 +1183,15 @@ sub saved_searches_list {
     my $input = $self->term->readline('search num ? ');
     length $input or return $self->done;
     if (my $datum = $saved->[$input]) {
-        $self->record_history(+{input => "z " . utf->encode($datum->{query})});
         my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1})->{statuses};
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
         }
         $self->print_status($statuses, 1);
         $self->ask_reaction($statuses);
+    } else {
+        $self->done;
     }
-    $self->done;
 }
 
 sub favorites {
@@ -1205,7 +1208,6 @@ sub favorites {
     }
     $self->print_status($statuses);
     $self->ask_reaction($statuses);
-    $self->done;
 }
 
 # OBSOLETE
