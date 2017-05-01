@@ -1016,8 +1016,7 @@ sub followers {
 
     sayf $self->_followers->{$screen_name} and return $self->done if $self->_followers->{$screen_name};
 
-    my $followers;
-    $followers .= "$_->{screen_name} " for @{$self->nt->followers({screen_name => $screen_name})->{users}};
+    my $followers = join "\n", map { " $_->{screen_name}" } reverse @{$self->nt->followers({screen_name => $screen_name})->{users}};
     $self->_followers->{$screen_name} = $followers;
     sayf "$screen_name followers";
     sayf $self->_followers->{$screen_name} and return $self->done;
@@ -1029,8 +1028,7 @@ sub friends {
 
     sayf $self->_friends->{$screen_name} and return $self->done if $self->_friends->{$screen_name};
 
-    my $friends;
-    $friends .= "$_->{screen_name} " for @{$self->nt->friends({screen_name => $screen_name})->{users}};
+    my $friends = join "\n", map { " $_->{screen_name}" } reverse @{$self->nt->friends({screen_name => $screen_name})->{users}};
     $self->_friends->{$screen_name} = $friends;
     sayf "$screen_name following";
     sayf $self->_friends->{$screen_name} and return $self->done;
