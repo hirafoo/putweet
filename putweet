@@ -8,7 +8,7 @@ use parent qw/Cache::Memcached::Fast/;
 sub new {
     my ($class, $args) = @_;
     my $self = $class->SUPER::new(+{
-        servers => [qw/127.0.0.1:11211/],
+        servers   => [qw/127.0.0.1:11211/],
         namespace => 'putweet:',
     });
     return $self;
