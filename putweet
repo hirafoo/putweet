@@ -33,7 +33,7 @@ use Class::Accessor::Lite (
     new => 1,
     rw  => [qw/
         dispatch menu nt term user user_list config count per last_updated statuses tl_types
-        _blocking_users _followers _friends _user_info _list_memberships _favs cache
+        _blocking_users _followers _friends _user_info _list_memberships _favs cache _done
     /],
 );
 use Cache::Memory::Simple;
@@ -209,11 +209,12 @@ sub init_accessor {
     $self->dispatch(+{});
     $self->statuses(+{});
     $self->last_updated(+{});
-    $self->tl_types([qw/home_timeline mentions retweets_of_me/]);#direct_messages favorites
+    $self->tl_types([qw/home_timeline mentions retweets_of_me favorites/]);#direct_messages
     $self->statuses->{$_} = +{} for $self->tl_types_array;
     $self->count(20);
     $self->per(60 * 5);
     $self->term(Term::ReadLine->new(''));
+    $self->_done(0);
 }
 sub init_menu {
     my ($self, $data) = @_;
@@ -396,6 +397,7 @@ sub run {
     my ($self) = @_;
 
     while (1) {
+        $self->_done(0);
         $self->last_updated->{basic}->{$self->user} ||= ((scalar localtime) - 60 * 10);
         clear;
         sayf "login as: %s  last update: %s\n", $self->user, $self->last_updated->{basic}->{$self->user}->hms;
@@ -434,7 +436,13 @@ sub done {
     my ($self, $message) = @_;
 
     sayf $message || "";
-    $self->term->readline("done.");
+
+    if ($self->_done) {
+        return;
+    } else {
+        $self->_done(1);
+        return $self->term->readline("done.");
+    }
 }
 
 sub block_user {
@@ -733,7 +741,7 @@ sub print_status {
         my $_screen_name = ($status->{user}{screen_name} or $status->{sender}{screen_name} or $status->{from_user});
         my $user_name = ($status->{user}{name} or $status->{sender}{name} or '');
         $user_name and $user_name = utf->encode($user_name);
-        $_screen_name = sprintf '%s %s', $user_name, $_screen_name = colored(["cyan"], '@'.$_screen_name);
+        $_screen_name = sprintf '%s %s', $_screen_name = colored(["cyan"], '@'.$_screen_name), $user_name;
         if ($org_status) {
             #$_screen_name = colored(["green"], $_screen_name);
             my $_verified = $status->{user}{verified} ? sprintf '(%s)', colored(["bright_magenta"], 'verified') : '';
@@ -762,7 +770,6 @@ sub print_status {
 }
 
 sub ask_reaction {
-    my @caller = caller;
     my ($self, $statuses) = @_;
 
     if ($self->config->{show_react_menu}) {
@@ -927,6 +934,8 @@ sub ask_reaction {
 
         $self->user_timeline($target->{user}{screen_name}, 0, 0, ($target->{id} - 1), 1);
     }
+
+    $self->done;
 }
 
 sub confirm {
@@ -1235,16 +1244,13 @@ sub favorited {
 }
 
 sub change_config {
-    my ($self, $item, $value) = @_;
+    my ($self, $key, $value) = @_;
 
-    if ($item) {
-        if (defined $value) {
-            sayf "$item -> $value";
-            $self->config->{$item} = $value;
-        }
-        else {
-            delete $self->config->{$item};
-        }
+    $value ||= 0;
+
+    if ($key) {
+        sayf "$key -> $value";
+        $self->config->{$key} = $value;
 
         my $user_list = $self->user_list;
         my $i = 0;
