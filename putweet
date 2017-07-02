@@ -311,13 +311,13 @@ sub expand_entities {
     my $entities = $status->{entities};
     if (my $medias = $entities->{media}) {
         for my $media (@$medias) {
-            $status->{text} =~ s/\Q$media->{url}\E/$media->{expanded_url}/;
+            $status->{full_text} =~ s/\Q$media->{url}\E/$media->{expanded_url}/;
         }
     }
     else {
         my $urls = $entities->{urls};
         for my $url (@$urls) {
-            $status->{text} =~ s/\Q$url->{url}\E/$url->{expanded_url}/;
+            $status->{full_text} =~ s/\Q$url->{url}\E/$url->{expanded_url}/;
         }
     }
     return $status;
@@ -362,6 +362,7 @@ sub init_statuses {
             %$opt,
             include_rts => 1,
             include_entities => 1,
+            tweet_mode => "extended",
         };
         my $statuses = $self->nt->$tl_name($opt);
         for my $status (@$statuses) {
@@ -523,13 +524,13 @@ sub destroy_status {
 
     if (ref $args) {
         my @ids = @$args;
-        sayf '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{text}) for @ids;
+        sayf '-%s', utf->encode($self->statuses->{user_timeline}->{$self->user}->{$_}->{full_text}) for @ids;
 
         $self->confirm("delete these ?") or return;
 
         for my $id (@ids) {
             $self->nt->destroy_status({id => $id});
-            sayf "destroy_status(%s)", utf->encode($self->statuses->{user_timeline}->{$self->user}->{$id}->{text});
+            sayf "destroy_status(%s)", utf->encode($self->statuses->{user_timeline}->{$self->user}->{$id}->{full_text});
             delete $self->statuses->{user_timeline}->{$self->user}->{$id};
         }
     }
@@ -538,7 +539,7 @@ sub destroy_status {
         my $status = $self->statuses->{user_timeline}->{$self->user}->{$id};
         $status->{user}{screen_name} eq $self->user or return $self->done("the status is not yours");
 
-        $self->confirm(utf->encode($status->{text})) or return;
+        $self->confirm(utf->encode($status->{full_text})) or return;
 
         $self->nt->destroy_status({id => $id});
         delete $self->statuses->{user_timeline}->{$self->user}->{$id};
@@ -554,7 +555,7 @@ sub _show_status {
 
     my $status = $self->cache->get_or_set(
         status_key($status_id), sub {
-            eval { $self->nt->show_status({id => $status_id, include_entities => 1}); };
+            eval { $self->nt->show_status({id => $status_id, include_entities => 1, tweet_mode => "extended"}); };
         }
     );
 
@@ -574,7 +575,7 @@ sub show_status {
     $status = $self->expand_entities($status);
     $self->statuses->{user_timeline}->{$status->{user}{screen_name}}->{$id} = $status;
     $self->print_status([$status]);
-    $self->ask_reaction([$status]);
+    $self->ask_reaction([$status], "show_status");
 }
 
 sub direct_messages {
@@ -628,7 +629,7 @@ sub home_timeline {
     my $statuses = $self->statuses->{home_timeline};
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
-    $self->ask_reaction($statuses);
+    $self->ask_reaction($statuses, "home_timeline");
 }
 
 sub mentions {
@@ -639,7 +640,7 @@ sub mentions {
     my $statuses = $self->statuses->{mentions};
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
-    $self->ask_reaction($statuses);
+    $self->ask_reaction($statuses, "mentions");
 }
 
 sub update {
@@ -690,7 +691,7 @@ sub user_timeline {
     my ($statuses, %new_tweets);
     if ($max_id or $self->passed(user_timeline => $screen_name)) {
         $statuses = $self->nt->user_timeline({
-            screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
+            screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1, tweet_mode => "extended",
             ($page ? (page => $page) : ()), ($max_id ? (max_id => $max_id) : ()),
         });
         for my $status (@$statuses) {
@@ -708,11 +709,11 @@ sub user_timeline {
     }
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
-    $self->ask_reaction($statuses);
+    $self->ask_reaction($statuses, "user_timeline");
 }
 
 sub print_status {
-    my ($self, $statuses, $opt) = @_;
+    my ($self, $statuses) = @_;
 
     @$statuses = reverse @$statuses;
     my $i = @$statuses;
@@ -732,8 +733,8 @@ sub print_status {
         my $reply_to = ($status->{in_reply_to_status_id} and $status->{in_reply_to_screen_name}) ?
             colored(["cyan"], "in reply to $status->{in_reply_to_screen_name}") : '';
 
-        $status->{text} = $sf->filter($status->{text});
-        $status->{text} = $sf_expand_url->filter($status->{text}) if $self->config->{expand_url};
+        $status->{full_text} = $sf->filter($status->{full_text});
+        $status->{full_text} = $sf_expand_url->filter($status->{full_text}) if $self->config->{expand_url};
 
         my $t = parse_time($status->{created_at});
         my $num = sprintf '%2d', $i;
@@ -749,7 +750,7 @@ sub print_status {
             my $rt = colored(["green"], "RT");
             my $org_screen_name = colored(["cyan"], '@'.$org_status->{user}{screen_name});
             $_screen_name .= " ($rt:$org_screen_name)";
-            $status->{text} =~ s/^RT @.+?//;
+            $status->{full_text} =~ s/^RT @.+?//;
             $verified = $org_status->{user}{verified} ? sprintf '(%s)', colored(["bright_magenta"], 'verified') : '';
         }
         $_screen_name .= $verified;
@@ -762,7 +763,7 @@ sub print_status {
             $source, $reply_to, $retweet_count, $favorite_count;
         $output =~ s/\r?\n//g;
 
-        sayf '%s%s%s%s%s', line("="), "\n", $output, "\n\n", decode_entities utf->encode($status->{text});
+        sayf '%s%s%s%s%s', line("="), "\n", $output, "\n\n", decode_entities utf->encode($status->{full_text});
 
         $i--;
     }
@@ -770,7 +771,8 @@ sub print_status {
 }
 
 sub ask_reaction {
-    my ($self, $statuses) = @_;
+    my ($self, $statuses, $method) = @_;
+    $method or die "need method";
 
     if ($self->config->{show_react_menu}) {
         sayf and sayf join "\n",
@@ -821,7 +823,7 @@ sub ask_reaction {
     }
 
     if ($n and !$c) {
-        sayf "reply to: \@$status->{user}{screen_name}: " . utf->encode(decode_entities $status->{text});
+        sayf "reply to: \@$status->{user}{screen_name}: " . utf->encode(decode_entities $status->{full_text});
         my $text = $self->term->readline('@' . $status->{user}{screen_name} . ' ');
         $text = "\@$status->{user}{screen_name} $text";
         $self->update($status->{id}, $text);
@@ -837,9 +839,9 @@ sub ask_reaction {
     }
     elsif ($c eq "r" or $c eq "t") {
         sayf $c eq 'r' ? 'with in_reply_to_status_id' : 'without in_reply_to_status_id';
-        sayf "RT to: \@$status->{user}{screen_name}: " . utf->encode($status->{text});
+        sayf "RT to: \@$status->{user}{screen_name}: " . utf->encode($status->{full_text});
         my $text = $self->term->readline('str: ');
-        $text = sprintf '%s RT @%s ', $text, utf->encode("$status->{user}{screen_name}: $status->{text}");
+        $text = sprintf '%s RT @%s ', $text, utf->encode("$status->{user}{screen_name}: $status->{full_text}");
         $c eq 't' ? $self->update($text) : $self->update($status->{id}, $text);
     }
     elsif ($c eq "T") {
@@ -867,7 +869,7 @@ sub ask_reaction {
             }
             sayf;
             $self->print_status(\@follow_statuses);
-            return $self->ask_reaction(\@follow_statuses);
+            return $self->ask_reaction(\@follow_statuses, "user_timeline");
         }
         else {
             sayf "can not follow. there is no 'in_reply_to_status_id'";
@@ -876,7 +878,7 @@ sub ask_reaction {
     elsif ($c eq "e") {
         my $id = $status->{id};
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
-        my $text = utf->encode($status->{text});
+        my $text = utf->encode($status->{full_text});
         $self->nt->create_favorite($id) and return $self->done("favorite:\n$screen_name\:$text");
     }
     elsif ($c eq "s") {
@@ -931,8 +933,13 @@ sub ask_reaction {
     elsif ($in eq "c") {
         $status = $statuses->[0];
         my $target = $status->{org_status} || $status;
-
         $self->user_timeline($target->{user}{screen_name}, 0, 0, ($target->{id} - 1), 1);
+
+        #if ($method eq "user_timeline") {
+        #    $self->user_timeline($target->{user}{screen_name}, 0, 0, ($target->{id} - 1), 1);
+        #} elsif ($method eq "favorites") {
+        #    $self->favorites($
+        #}
     }
 
     $self->done;
@@ -1009,11 +1016,7 @@ sub retweet {
     my ($self, $id) = @_;
     $id or return $self->done('args: status id');
 
-    my $status = $self->cache->get_or_set(
-        status_key($id), sub {
-            $self->nt->show_status({id => $id, include_entities => 1});
-        }
-    );
+    my $status = $self->_show_status($id);
     $self->print_status([$status]);
     $self->confirm("do official retweet ?") or return $self->done;
     $self->nt->retweet($id);
@@ -1054,6 +1057,7 @@ sub retweets_of_me {
     $self->print_status($statuses) and $self->done;
 }
 
+# deprecated
 sub retweeted_by_user {
     my ($self, $screen_name, $count, $page) = @_;
     $screen_name ||= $self->user;
@@ -1063,7 +1067,7 @@ sub retweeted_by_user {
     my $statuses;
     if ($self->passed(retweeted_by_user => $screen_name)) {
         $statuses = $self->nt->retweeted_by_user({
-            screen_name => $screen_name, count => $count, include_entities => 1,
+            screen_name => $screen_name, count => $count, include_entities => 1, tweet_mode => "extended",
             page => $page,
         });
         for my $status (@$statuses) {
@@ -1075,7 +1079,7 @@ sub retweeted_by_user {
     $statuses = $self->statuses->{retweeted_by_user}->{$screen_name};
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
-    $self->ask_reaction($statuses);
+    $self->ask_reaction($statuses, "retweeted_by_user");
 }
 
 sub list_memberships {
@@ -1127,7 +1131,8 @@ sub list_statuses {
     my $statuses;
     if ($self->passed("list_$list_name" => $screen_name)) {
         $statuses = $self->nt->list_statuses({
-            list_id => $list_name, owner_screen_name => $screen_name, count => $count, include_rts => 1, include_entities => 1,
+            list_id => $list_name, owner_screen_name => $screen_name,
+            count => $count, include_rts => 1, include_entities => 1, tweet_mode => "extended",
             page => $page, ($max_id ? (max_id => $max_id) : ()),
         });
         for my $status (@$statuses) {
@@ -1139,17 +1144,17 @@ sub list_statuses {
     $statuses = $self->statuses->{"list_$list_name"}->{$screen_name};
     $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     $self->print_status($statuses);
-    $self->ask_reaction($statuses);
+    $self->ask_reaction($statuses, "list_statuses");
 }
 
 sub search {
     my ($self, @words) = @_;
     @words or return $self->done('args: word[s]');
-    @words = map { s/　/ /g; /^-/ ? $_ : qq{"$_"}; } @words;
+    @words = map { /^-/ ? $_ : qq{"$_"} } map { split /　/ } @words;
 
     my @ng_words = do {
         my $ng_words = "$ENV{HOME}/.putweet_ng_words";
-        my @spam = map {qq{-source:$_}} qw/twittbot.net twiroboJP autotweety.net/; # max 3? want to add 'Tweet Old Post'
+        my @spam = map {qq{-source:$_}} qw/twittbot.net twiroboJP autotweety.net IFTTT WordPress.com Wantedly/; # 'Tweet Old Post'
         my @w = (
             "exclude:retweets",
             @spam,
@@ -1170,12 +1175,12 @@ sub search {
     };
     my $word = join " ", @words, @ng_words;
     $word = utf->decode($word);
-    my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1})->{statuses};
+    my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
     for my $status (@$statuses) {
         $status = $self->expand_entities($status);
     }
-    $self->print_status($statuses, 1);
-    $self->ask_reaction($statuses);
+    $self->print_status($statuses);
+    $self->ask_reaction($statuses, "search");
 }
 
 sub saved_searches_list {
@@ -1189,23 +1194,26 @@ sub saved_searches_list {
         sayf line("=");
     }
     my $input = $self->term->readline('search num ? ');
-    length $input or return $self->done;
+    length $input && $input !~ /\D/ or return $self->done("invalid input");
+
     if (my $datum = $saved->[$input]) {
-        my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1})->{statuses};
+        my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
         }
-        $self->print_status($statuses, 1);
-        $self->ask_reaction($statuses);
+        $self->print_status($statuses);
+        $self->ask_reaction($statuses, "search");
     } else {
         $self->done;
     }
 }
 
 sub favorites {
-    my ($self, $screen_name) = @_;
+    my ($self, $args) = @_;
 
+    my $screen_name = $args->{screen_name};
     my $statuses;
+
     if ($screen_name) {
         $statuses = $self->nt->favorites({screen_name => $screen_name});
     } else {
@@ -1215,7 +1223,7 @@ sub favorites {
         $statuses = [map {$statuses->{$_}} sort {$b <=> $a} keys %$statuses];
     }
     $self->print_status($statuses);
-    $self->ask_reaction($statuses);
+    $self->ask_reaction($statuses, +{method => "favorites", screen_name => $screen_name});#XXX
 }
 
 # OBSOLETE
