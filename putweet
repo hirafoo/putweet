@@ -1176,6 +1176,7 @@ sub search {
     my $word = join " ", @words, @ng_words;
     $word = utf->decode($word);
     my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
+    sayf utf->encode("search: $word");
     for my $status (@$statuses) {
         $status = $self->expand_entities($status);
     }
