@@ -1195,9 +1195,12 @@ sub saved_searches_list {
         sayf line("=");
     }
     my $input = $self->term->readline('search num ? ');
-    length $input && $input !~ /\D/ or return $self->done("invalid input");
+    length $input && $input !~ /\D/ or return $self->done;
 
     if (my $datum = $saved->[$input]) {
+        my @spam = map {qq{-source:$_}} qw/twittbot.net twiroboJP autotweety.net IFTTT WordPress.com Wantedly/; # 'Tweet Old Post'
+        my $q = join " ", $datum->{query}, "exclude:retweets", @spam;
+
         my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
@@ -1225,6 +1228,38 @@ sub favorites {
     }
     $self->print_status($statuses);
     $self->ask_reaction($statuses, +{method => "favorites", screen_name => $screen_name});#XXX
+}
+
+sub show_trends {
+    my ($self, $woeid) = @_;
+    $woeid //= 1118370;
+
+    my $trends = $self->cache->get_or_set(
+        sprintf("show_trends:%d", $woeid) => sub {
+            $self->nt->trends_place($woeid)->[0]->{trends};
+        },
+        60
+    );
+    for (my $i=0; $i<@$trends; $i++) {
+        my $datum = $trends->[$i];
+        sayf "%d: %s", $i, utf->encode($datum->{name});
+    }
+    my $input = $self->term->readline('search num ? ');
+    length $input && $input !~ /\D/ or return $self->done;
+
+    if (my $datum = $trends->[$input]) {
+        my @spam = map {qq{-source:$_}} qw/twittbot.net twiroboJP autotweety.net IFTTT WordPress.com Wantedly/; # 'Tweet Old Post'
+        my $q = join " ", $datum->{query}, "exclude:retweets", @spam;
+
+        my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
+        for my $status (@$statuses) {
+            $status = $self->expand_entities($status);
+        }
+        $self->print_status($statuses);
+        $self->ask_reaction($statuses, "search");
+    } else {
+        $self->done;
+    }
 }
 
 # OBSOLETE
@@ -1441,6 +1476,11 @@ menu:
         - saved_searches_list
         - none
         - show saved_searches/list
+      -
+        - b
+        - show_trends
+        - woeid?
+        - show trends/place
     -
       -
         - c
