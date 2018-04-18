@@ -165,6 +165,25 @@ sub expand_short_url {
 
 sub status_key { "status_$_[0]" }
 
+sub spam_source_list {
+    qw/
+        twittbot.net
+        twiroboJP
+        autotweety.net
+        IFTTT
+        WordPress.com
+        Wantedly
+        new41Twitterapi
+        pokemongo-antenna
+    /;
+    #'Tweet Old Post',
+    #'Botbird tweets';
+    #ツイート文章作成botシステム
+    #セレブ旅行でグローバル子育て実践中
+    #メイクボットの神
+    #qw/twittbot.net twiroboJP autotweety.net IFTTT WordPress.com Wantedly/; # 'Tweet Old Post'
+}
+
 my %DAY_MAP = qw/
     Mon 月
     Tue 火
