@@ -398,7 +398,8 @@ sub init_statuses {
             my ($source, $source_url) = $self->fix_source($status->{source});
             $source =~ m/^via twittbot\.net$/ and next; # spam
             $status->{id} or next;# sometimes api return blank data
-            #$status->{user}->{screen_name} eq "span" and next;
+            #$status->{user}->{screen_name} eq "spam" and next;
+            $SKIP_SCREEN_IDS{$status->{user}->{screen_name}} and next;
             $status = $self->expand_entities($status);
             $self->statuses->{$tl_name}->{$status->{id}} = $status;
         }
