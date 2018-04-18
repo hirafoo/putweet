@@ -195,6 +195,16 @@ my %DAY_MAP = qw/
 /;
 
 my $HISTORY_FILE = "$ENV{HOME}/.putweet_history";
+my $SKIP_SCREEN_ID_FILE = "$ENV{HOME}/.putweet_skip_screen_ids";
+
+my %SKIP_SCREEN_IDS;
+if (-e $SKIP_SCREEN_ID_FILE) {
+    open my $fh, "<", $SKIP_SCREEN_ID_FILE or die $!;
+    for my $i (<$fh>) {
+        chomp $i;
+        $SKIP_SCREEN_IDS{$i}++;
+    }
+}
 
 sub init {
     my ($self, @args) = @_;
