@@ -1145,7 +1145,7 @@ sub all_lists {
 
     my $lists = $self->nt->get_lists({screen_name => $screen_name});
     for my $list (@$lists) {
-        sayf "- %s / %d", $list->{name}, $list->{id};
+        sayf "- %s / %d", utf->encode($list->{name}), $list->{id};
     }
     return $self->done;
 }
