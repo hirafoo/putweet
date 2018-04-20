@@ -540,8 +540,7 @@ sub change_user {
     $self->$_(+{}) for qw/_followers _friends _list_memberships/;
     $self->last_updated->{basic}->{$self->user} = 0;
     #$self->statuses->{$_} = +{} for $self->tl_types_array;
-    #$self->clear_statuses; #when user change
-    $self->cache->flush_all;
+    $self->clear_statuses; #when user change
     sayf 'getting statuses...';
     #$self->init_statuses;
 
