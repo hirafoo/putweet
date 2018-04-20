@@ -1228,7 +1228,7 @@ sub saved_searches_list {
     length $input && $input !~ /\D/ or return $self->done;
 
     if (my $datum = $saved->[$input]) {
-        my @spam = map {qq{-source:$_}} qw/twittbot.net twiroboJP autotweety.net IFTTT WordPress.com Wantedly/; # 'Tweet Old Post'
+        my @spam = map {qq{-source:$_}} $self->spam_source_list;
         my $q = join " ", $datum->{query}, "exclude:retweets", @spam;
 
         my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
