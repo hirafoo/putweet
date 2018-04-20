@@ -1183,7 +1183,8 @@ sub search {
 
     my @ng_words = do {
         my $ng_words = "$ENV{HOME}/.putweet_ng_words";
-        my @spam = map {qq{-source:$_}} qw/twittbot.net twiroboJP autotweety.net IFTTT WordPress.com Wantedly/; # 'Tweet Old Post'
+        # spam list
+        my @spam = map {qq{-source:$_}} $self->spam_source_list;
         my @w = (
             "exclude:retweets",
             @spam,
