@@ -1231,7 +1231,7 @@ sub saved_searches_list {
         my @spam = map {qq{-source:$_}} $self->spam_source_list;
         my $q = join " ", $datum->{query}, "exclude:retweets", @spam;
 
-        my $statuses = $self->nt->search({q => $datum->{query}, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
+        my $statuses = $self->nt->search({q => $q, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
         }
