@@ -476,6 +476,36 @@ sub done {
     }
 }
 
+sub mute_user {
+    my ($self, $screen_name) = @_;
+    return $self->done("args: user_id/screen_name.") unless $screen_name;
+    $self->confirm($screen_name) or return;
+    $self->nt->create_mute($screen_name);
+    $self->done("mute: $screen_name");
+}
+
+sub unmute_user {
+    my ($self, $screen_name) = @_;
+    return $self->done("args: user_id/screen_name.") unless $screen_name;
+    $self->confirm($screen_name) or return;
+    $self->nt->destroy_mute($screen_name);
+    $self->done("unmute: $screen_name");
+}
+
+sub show_muting {
+    my $self = shift;
+
+    my $muting_users = "";
+    my $users = $self->nt->muting;
+    for my $user (@{$users->{users}}) {
+        my ($user_id, $screen_name, $name) = ($user->{id}, $user->{screen_name}, $user->{name});
+        $name = utf->encode($name) if is_utf8($name);
+        $muting_users .= sprintf "%-9s %s\t%s\n", $user_id, $screen_name, $name;
+    }
+    sayf $muting_users;
+    $self->done;
+}
+
 sub block_user {
     my ($self, $screen_name) = @_;
     return $self->done("args: user_id/screen_name.") unless $screen_name;
@@ -816,6 +846,7 @@ sub ask_reaction {
             " e[number] : favorite the status",
             " s[number] : show user's timeline",
             " n[number] : report for spam",
+            " m[number] : mute user",
             " b[number] : block user",
             " d[number] : delete your status",
             " x[number] : show relation between the user",
@@ -941,6 +972,10 @@ sub ask_reaction {
 
             $self->destroy_status(\@ids);
         }
+    }
+    elsif ($c eq "m") {
+        my $screen_name = $status->{from_user} || $status->{user}{screen_name};
+        $self->mute_user($screen_name);
     }
     elsif ($c eq "b") {
         my $screen_name = $status->{from_user} || $status->{user}{screen_name};
@@ -1362,6 +1397,7 @@ menu:
     - message
     - friend
     - block
+    - mute
     - lists
     - favorites
     - search
@@ -1472,6 +1508,22 @@ menu:
         - n
         - report_spam
         - user_id/screen_name
+        - ~
+    -
+      -
+        - M
+        - mute_user
+        - user_id/screen_name
+        - ~
+      -
+        - U
+        - unmute_user
+        - user_id/screen_name
+        - ~
+      -
+        - N
+        - show_muting
+        - none
         - ~
     -
       -
