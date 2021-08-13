@@ -1223,6 +1223,7 @@ sub search {
         my @w = (
             "exclude:retweets",
             @spam,
+            "lang:ja",
         );
 
         if (open my $fh_ng, "<", $ng_words) {
@@ -1240,7 +1241,7 @@ sub search {
     };
     my $word = join " ", @words, @ng_words;
     $word = utf->decode($word);
-    my $statuses = $self->nt->search({q => $word, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
+    my $statuses = $self->nt->search({q => $word, include_entities => 1, tweet_mode => "extended"})->{statuses};
     sayf utf->encode("search: $word");
     for my $status (@$statuses) {
         $status = $self->expand_entities($status);
@@ -1266,7 +1267,7 @@ sub saved_searches_list {
         my @spam = map {qq{-source:$_}} $self->spam_source_list;
         my $q = join " ", $datum->{query}, "exclude:retweets", @spam;
 
-        my $statuses = $self->nt->search({q => $q, lang => 'ja', include_entities => 1, tweet_mode => "extended"})->{statuses};
+        my $statuses = $self->nt->search({q => $q, include_entities => 1, tweet_mode => "extended"})->{statuses};
         for my $status (@$statuses) {
             $status = $self->expand_entities($status);
         }
@@ -1280,7 +1281,7 @@ sub saved_searches_list {
 sub favorites {
     my ($self, $args) = @_;
 
-    my $screen_name = $args->{screen_name};
+    my $screen_name = $args;
     my $statuses;
 
     if ($screen_name) {

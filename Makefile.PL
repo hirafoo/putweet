@@ -4,6 +4,7 @@ name 'Putweet';
 all_from 'putweet';
 
 requires $_ for qw/
+    Cache::Memcached::Fast
     Cache::Memory::Simple
     Class::Accessor::Lite
     Config::Pit
@@ -14,6 +15,7 @@ requires $_ for qw/
     HTML::Entities
     JSON::XS
     Net::OAuth
+    Net::Twitter
     Net::Twitter::Lite
     String::Filter
     Term::ANSIColor
